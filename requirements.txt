@@ -1,0 +1,44 @@
+# requirements.txt
+# FINAL VERSION: mamba-ssm is now installed from source in the Dockerfile.
+
+# Core ML/RL
+stable-baselines3[extra]>=2.0.0
+
+# PyTorch 2.3 / CUDA 12.1 platform
+torch==2.3.0+cu121
+torchvision==0.18.0+cu121
+torchaudio==2.3.0+cu121
+
+# Core libraries
+gymnasium>=0.28.0
+packaging
+pandas>=1.5.0,<2.0.0
+numpy>=1.21.0
+ta>=0.10.0
+scikit-learn>=1.1.0
+pandas_ta
+hmmlearn>=0.3.0
+numba>=0.58.0
+
+# Optimization & Config
+optuna>=3.1.0
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+
+# Evaluation & Plotting
+quantstats>=0.0.61
+matplotlib>=3.5.0
+seaborn>=0.12.0
+plotly>=5.10.0
+kaleido>=0.2.1
+IPython>=7.2.0
+
+# Utilities
+joblib>=1.1.0
+tqdm>=4.60.0
+PyYAML>=6.0
+
+# Parallelization
+dask>=2.3.0
+distributed>=2.0.0
+cloudpickle>=2.0.0

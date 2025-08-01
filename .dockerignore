@@ -1,0 +1,21 @@
+# .dockerignore
+
+# Ignore the Python virtual environment. This is critical.
+venv/
+sagemaker_env/
+
+# Ignore Git files
+.git/
+.gitignore
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore local config/temp files
+.idea/
+.vscode/
+*.DS_Store
+build-test
+Dockerfile.debug

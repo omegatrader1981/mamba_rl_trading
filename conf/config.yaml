@@ -1,0 +1,123 @@
+# @package _global_
+
+# --- Defaults List ---
+# This tells Hydra to compose our final config by picking one file from each group.
+# The last item in the list wins in case of conflicts.
+defaults:
+  - _self_
+  - instrument: mnq
+  - experiment: refine
+  # Placeholders for future phases
+  # - model: ppo
+  # - reward: simple_pnl
+  
+  # This is a technical override needed for Hydra's logging to work with this structure
+  - override hydra/job_logging: default
+
+# <<< Global Debug Flags >>>
+debug_autograd_anomaly: false
+use_mamba_nan_callback: true
+mamba_nan_callback_freq: 500
+
+# --- Data Configuration (Common Settings) ---
+data:
+  data_dir: "." 
+  sagemaker_channel_name: training
+  use_regime_splicing: true
+
+  # <<< STRATEGIC IMPROVEMENT APPLIED >>>
+  # The regime definitions have been restructured into a list of [start, end] pairs.
+  # This format is safer to parse, prevents silent errors from malformed lists,
+  # and allows for defining non-contiguous regimes in the future (e.g., [['date1', 'date2'], ['date3', 'date4']]).
+  regime_definitions:
+    train_High_Vol_Crash: [['2020-02-15', '2020-04-30']]
+    train_Bull_Market:    [['2020-06-01', '2020-09-30']]
+    train_Bear_Market:    [['2022-04-01', '2022-07-31']]
+    train_Sideways_Chop:  [['2023-07-01', '2023-10-31']]
+    train_Low_Vol_Grind:  [['2021-10-01', '2021-12-31']]
+    validation_set:       [['2023-01-01', '2023-06-30']]
+    test_set:             [['2024-01-01', '2024-12-31']]
+  
+  cleaning:
+    min_allowable_price: 0.01
+    outlier_rolling_window: 21 
+    outlier_median_dev_threshold: 0.20
+
+# --- Feature Engineering (Defaults) ---
+features:
+  hurst_window: 100
+  momentum_window: 21
+  volatility_window: 21
+  z_score_window: 60
+  pct_change_cap: 0.05 
+  hl_pct_cap: 0.05     
+  hmm_n_components: 2
+  hmm_min_samples: 500
+
+# --- Environment Configuration (Common Settings) ---
+environment:
+  env_id: FuturesTradingEnv-v0
+  max_episode_steps: 4096
+  initial_balance: 50000.0
+  add_bid_ask_spread: true      
+  spread_ticks_min: 1           
+  spread_ticks_max: 2           
+  max_slippage_points: 0.25
+  reward_type: "profit" 
+  hold_penalty_scale: 0.0   
+  max_consecutive_holds_limit: 900
+  min_lookback_hpo: 200
+  max_lookback_hpo: 400
+
+# --- Model Configuration (Defaults) ---
+model:
+  net_arch_pi_vf_options: [[64, 64], [128, 128]] 
+  mlp_activation_fn_name: 'relu' 
+  mamba_activation_fn_name: 'silu' 
+  mamba_extractor_validation: {input_nan_inf_replacement: 0.0, input_clipping_value: 10.0} 
+  mamba_d_conv_default: 2
+  mamba_expand_default: 2
+
+# This tells Hydra to expect an 'optimization' block from one of the experiment files.
+optimization: {}
+
+# --- Training & Evaluation (Final Run Settings) ---
+training:
+  total_timesteps: 1000000 
+  use_vec_normalize: true 
+  ppo_n_epochs: 10
+  n_envs_final_train: 1
+  use_subproc_vec_env: false
+
+evaluation:
+  deterministic_actions: true 
+
+# --- Saving Configuration (Uses Interpolation) ---
+saving:
+  output_dir: output_mamba_${instrument.symbol}_${experiment.name}
+  scaler_filename: ${instrument.symbol}_scaler_${experiment.name}.joblib
+  optuna_study_name: ${instrument.symbol}_Opt_${experiment.name}
+  optuna_db_name: optuna_study_${instrument.symbol}_${experiment.name}.db 
+  best_params_filename: ${instrument.symbol}_best_params_${experiment.name}.joblib 
+  final_model_filename: ${instrument.symbol}_final_model_${experiment.name}.zip 
+  vec_normalize_filename: ${instrument.symbol}_vecnormalize_final_${experiment.name}.pkl
+  trades_filename: test_trades_${experiment.name}.csv
+  equity_filename: test_equity_${experiment.name}.csv
+  report_filename: ${instrument.symbol}_report_${experiment.name}.html
+  optuna_history_plot: optuna_history_${experiment.name}.png 
+  optuna_importance_plot: optuna_importance_${experiment.name}.png 
+  equity_curve_plot: equity_curve_${experiment.name}.png
+  positions_plot: positions_plot_${experiment.name}.png
+  log_filename: mamba_rl_trading_${experiment.name}.log
+  checkpoint_dir_name: 'checkpoints_${experiment.name}'
+
+# --- Device Configuration ---
+device: auto 
+
+# --- Hydra Settings ---
+hydra:
+  run:
+    dir: ${saving.output_dir}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: multirun/${saving.output_dir}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}
