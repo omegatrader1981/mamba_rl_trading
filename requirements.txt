@@ -1,19 +1,13 @@
 # requirements.txt
-# FINAL VERSION: mamba-ssm is now installed from source in the Dockerfile.
+# Core dependencies. PyTorch and Mamba are now installed in the Dockerfile.
 
 # Core ML/RL
 stable-baselines3[extra]>=2.0.0
 
-# PyTorch 2.3 / CUDA 12.1 platform
-torch==2.3.0+cu121
-torchvision==0.18.0+cu121
-torchaudio==2.3.0+cu121
-
 # Core libraries
 gymnasium>=0.28.0
-packaging
 pandas>=1.5.0,<2.0.0
-numpy>=1.21.0
+numpy>=1.21.0,<2.0.0  # Pin to avoid compatibility issues
 ta>=0.10.0
 scikit-learn>=1.1.0
 pandas_ta
@@ -37,6 +31,7 @@ IPython>=7.2.0
 joblib>=1.1.0
 tqdm>=4.60.0
 PyYAML>=6.0
+sagemaker-training
 
 # Parallelization
 dask>=2.3.0
