@@ -1,5 +1,5 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# PRODUCTION VERSION: Pure pip approach to avoid conda TOS issues
+# PRODUCTION VERSION: Pure pip approach with strict PyTorch version control
 FROM docker.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # --- Environment Setup ---
@@ -19,7 +19,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Upgrade pip and install build tools
 RUN pip install --upgrade pip setuptools wheel
 
-# Install PyTorch with CUDA support using pip (compatible versions)
+# Install PyTorch with CUDA support using pip (with strict versioning)
 RUN pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
 
 # Install Mamba dependencies (pre-built wheels)
@@ -28,9 +28,11 @@ RUN pip install packaging ninja &&     pip install causal-conv1d==1.4.0 --no-cac
 # --- Application Setup ---
 WORKDIR /opt/ml/code
 
-# Copy and install the rest of our Python packages
+# Copy and install the rest of our Python packages with NO-DEPS for PyTorch packages
 COPY requirements.txt /opt/ml/code/requirements.txt
-RUN pip install -r requirements.txt --no-cache-dir
+
+# Install requirements but prevent PyTorch upgrades
+RUN pip install -r requirements.txt --no-cache-dir --no-deps --force-reinstall torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 ||     pip install -r requirements.txt --no-cache-dir
 
 # Copy the project code into the final image
 COPY . /opt/ml/code/
