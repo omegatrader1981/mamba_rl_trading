@@ -1,5 +1,6 @@
 # requirements.txt
-# Core dependencies. PyTorch and Mamba are now installed in the Dockerfile.
+# Core dependencies. PyTorch and Mamba are installed in the Dockerfile.
+# DO NOT include torch, torchvision, torchaudio, mamba-ssm, or causal-conv1d here
 
 # Core ML/RL
 stable-baselines3[extra]>=2.0.0
