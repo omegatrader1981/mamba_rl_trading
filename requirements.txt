@@ -5,8 +5,8 @@ torch==2.1.0
 torchvision==0.16.0
 torchaudio==2.1.0
 
-# Core ML/RL
-stable-baselines3[extra]>=2.0.0
+# Core ML/RL (FIXED: stable-baselines3 2.0.0 doesn't exist yet)
+stable-baselines3[extra]>=1.8.0
 
 # Core libraries
 gymnasium>=0.28.0
