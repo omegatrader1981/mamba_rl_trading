@@ -48,33 +48,9 @@ RUN pip install -r requirements.txt --no-cache-dir
 # Copy the project code into the final image
 COPY . /opt/ml/code/
 
-# --- Enhanced Diagnostics ---
+# --- Simple Diagnostics (single line to avoid escaping issues) ---
 RUN echo "--- Docker Build: COMPREHENSIVE Check ..." && \
-    python -c "
-import sys
-print(f'Python version: {sys.version}')
-
-# Check CUDA libraries are available
-print('=== CUDA Library Check ===')
-import ctypes.util
-for lib in ['cublas', 'cufft', 'curand']:
-    path = ctypes.util.find_library(lib)
-    print(f'{lib}: {\\"✅ Found\\" if path else \\"❌ Missing\\"} {path or \\"\\"}')
-
-# Test PyTorch CUDA
-print('=== PyTorch Test ===')
-import torch
-print(f'PyTorch: {torch.__version__}')
-print(f'CUDA available: {torch.cuda.is_available()}')
-print(f'CUDA device count: {torch.cuda.device_count()}')
-
-# Test mamba-ssm
-print('=== Mamba-SSM Test ===')
-import mamba_ssm
-print(f'mamba-ssm: {getattr(mamba_ssm, \\"__version__\\", \\"N/A\\")}')
-
-print('✅ All imports successful!')
-"
+    python -c "import sys; print(f'Python version: {sys.version}'); import torch; print(f'PyTorch: {torch.__version__}, CUDA available: {torch.cuda.is_available()}'); import mamba_ssm; print(f'mamba-ssm: {getattr(mamba_ssm, \"__version__\", \"N/A\")}'); print('✅ All imports successful!')"
 
 # --- SageMaker Configuration ---
 ENV SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code
