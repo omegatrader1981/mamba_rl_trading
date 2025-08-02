@@ -1,11 +1,11 @@
 # requirements.txt
-# PyTorch with CUDA 11.8 support (MUST be first to prevent version conflicts)
---index-url https://download.pytorch.org/whl/cu118
+# PyTorch with CUDA 11.8 support - use extra-index-url to keep PyPI access
+--extra-index-url https://download.pytorch.org/whl/cu118
 torch==2.1.0
 torchvision==0.16.0
 torchaudio==2.1.0
 
-# Core ML/RL (FIXED: stable-baselines3 2.0.0 doesn't exist yet)
+# Core ML/RL (now can access PyPI)
 stable-baselines3[extra]>=1.8.0
 
 # Core libraries
