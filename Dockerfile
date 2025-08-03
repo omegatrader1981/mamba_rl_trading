@@ -6,8 +6,8 @@ FROM docker.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
 # --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
-ENV LANG=C-UTF-8
-ENV LC_ALL=C-UTF-8
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies, including those for headless Chrome.
@@ -35,7 +35,7 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
 # Add conda to the system PATH
 ENV PATH="/opt/conda/bin:$PATH"
 
-# <<< THE FIX: Accept Anaconda Terms of Service >>>
+# Accept Anaconda Terms of Service
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
     conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
@@ -59,7 +59,7 @@ COPY . /opt/ml/code/
 RUN echo "--- Docker Build: COMPREHENSIVE Check ..." && \
     python -c "import sys; print(f'Py version: {sys.version}'); \
     import torch; print(f'torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}'); \
-    import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \\"__version__\\", \\"N/A\\")}')"
+    import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \"__version__\", \"N/A\")}')"
 
 # --- SageMaker Configuration ---
 ENV CONDA_DEFAULT_ENV=mamba_env
