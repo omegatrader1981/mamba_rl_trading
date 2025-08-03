@@ -1,17 +1,10 @@
 # @package _global_
 
 # --- Defaults List ---
-# This tells Hydra to compose our final config by picking one file from each group.
-# The last item in the list wins in case of conflicts.
 defaults:
   - _self_
   - instrument: mnq
   - experiment: refine
-  # Placeholders for future phases
-  # - model: ppo
-  # - reward: simple_pnl
-  
-  # This is a technical override needed for Hydra's logging to work with this structure
   - override hydra/job_logging: default
 
 # <<< Global Debug Flags >>>
@@ -24,8 +17,6 @@ data:
   data_dir: "." 
   sagemaker_channel_name: training
   use_regime_splicing: true
-
-  # The regime definitions have been restructured into a list of [start, end] pairs.
   regime_definitions:
     train_High_Vol_Crash: [['2020-02-15', '2020-04-30']]
     train_Bull_Market:    [['2020-06-01', '2020-09-30']]
@@ -34,7 +25,6 @@ data:
     train_Low_Vol_Grind:  [['2021-10-01', '2021-12-31']]
     validation_set:       [['2023-01-01', '2023-06-30']]
     test_set:             [['2024-01-01', '2024-12-31']]
-  
   cleaning:
     min_allowable_price: 0.01
     outlier_rolling_window: 21 
@@ -65,6 +55,8 @@ environment:
   max_consecutive_holds_limit: 900
   min_lookback_hpo: 200
   max_lookback_hpo: 400
+  # <<< THE FIX IS HERE: Added the missing key to the struct. >>>
+  lookback_window: 256 # A sensible default value
 
 # --- Model Configuration (Defaults) ---
 model:
@@ -75,9 +67,7 @@ model:
   mamba_d_conv_default: 2
   mamba_expand_default: 2
 
-# <<< THE FIX IS HERE: Define the full, default structure for the optimization block. >>>
-# This prevents Hydra's "Struct" mode from throwing an error when experiment
-# files try to override these values.
+# Full default structure for the optimization block.
 optimization:
   n_trials: 30
   timeout_seconds: null 

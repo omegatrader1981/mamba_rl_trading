@@ -1,37 +1,47 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-FROM docker.io/nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+# FINAL PRODUCTION VERSION: Includes Google Chrome for Kaleido plotting backend.
 
+FROM docker.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+# --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
+ENV TZ=Etc/UTC
+ENV LANG=C-UTF-8
+ENV LC_ALL=C-UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    python3.10 python3.10-dev python3.10-venv python3-pip \
-    build-essential pkg-config git \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install system dependencies, including those for headless Chrome.
+RUN apt-get update && apt-get install -y     wget git build-essential ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0     libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1     libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0     libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1     libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 lsb-release     xdg-utils &&     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
-RUN python3.10 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install Google Chrome for the Kaleido backend.
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb &&     apt-get install -y ./google-chrome-stable_current_amd64.deb &&     rm google-chrome-stable_current_amd64.deb
 
+# Install Miniconda for robust package management
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh &&     bash miniconda.sh -b -p /opt/conda &&     rm miniconda.sh
+
+# Add conda to the system PATH
+ENV PATH="/opt/conda/bin:$PATH"
+
+# Create and configure the conda environment
+RUN conda create -n mamba_env python=3.10 -y
+SHELL ["conda", "run", "-n", "mamba_env", "/bin/bash", "-c"]
+
+# Install the known-good, stable combination of PyTorch and Mamba
+RUN conda install pytorch==2.1.0 torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+RUN pip install packaging ninja &&     pip install causal-conv1d==1.4.0 --no-cache-dir &&     pip install mamba-ssm==2.2.2 --no-cache-dir
+
+# --- Application Setup ---
 WORKDIR /opt/ml/code
+COPY requirements.txt /opt/ml/code/requirements.txt
+RUN pip install -r requirements.txt --no-cache-dir
+COPY . /opt/ml/code/
 
-# Install all dependencies from requirements.txt (including pinned PyTorch)
-COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt --no-cache-dir
+# --- Diagnostics and Final Configuration ---
+RUN echo "--- Docker Build: COMPREHENSIVE Check ..." &&     python -c "import sys; print(f'Py version: {sys.version}');     import torch; print(f'torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}');     import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \"__version__\", \"N/A\")}')"
 
-# Install mamba after PyTorch is locked in place
-RUN pip install packaging ninja && \
-    pip install causal-conv1d==1.4.0 mamba-ssm==2.2.2 --no-cache-dir
-
-# Copy project code
-COPY . .
-
-# Test everything works
-RUN python -c "import torch, mamba_ssm; print(f'✅ PyTorch: {torch.__version__}, mamba-ssm: {getattr(mamba_ssm, \"__version__\", \"N/A\")}')"
-
-# SageMaker configuration
+# --- SageMaker Configuration ---
+ENV CONDA_DEFAULT_ENV=mamba_env
+ENV PATH="/opt/conda/envs/mamba_env/bin:$PATH"
 ENV SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code
 ENV SAGEMAKER_PROGRAM=src/train.py
-ENTRYPOINT ["python", "-m", "sagemaker_training.cli.train"]
+ENTRYPOINT ["conda", "run", "-n", "mamba_env", "python", "-m", "sagemaker_training.cli.train"]
