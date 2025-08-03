@@ -35,6 +35,10 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
 # Add conda to the system PATH
 ENV PATH="/opt/conda/bin:$PATH"
 
+# <<< THE FIX: Accept Anaconda Terms of Service >>>
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
 # Create and configure the conda environment
 RUN conda create -n mamba_env python=3.10 -y
 SHELL ["conda", "run", "-n", "mamba_env", "/bin/bash", "-c"]
