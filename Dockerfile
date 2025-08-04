@@ -1,43 +1,27 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# FINAL PRODUCTION VERSION: Includes Google Chrome for Kaleido plotting backend.
+# FINAL PRODUCTION VERSION: Pulls base image from the official NVIDIA registry (nvcr.io).
 
-FROM docker.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
+# <<< THE FIX IS HERE: Using the official, more reliable NVIDIA container registry. >>>
+FROM nvcr.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
+ENV LANG=C-UTF-8
+ENV LC_ALL=C-UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies, including those for headless Chrome.
-RUN apt-get update && apt-get install -y \
-    wget git build-essential ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 \
-    libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 \
-    libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 \
-    libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
-    libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 lsb-release \
-    xdg-utils libvulkan1 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y     wget git build-essential ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0     libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1     libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0     libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1     libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 lsb-release     xdg-utils &&     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Google Chrome for the Kaleido backend.
-RUN apt-get update && \
-    wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
-    rm google-chrome-stable_current_amd64.deb && \
-    rm -rf /var/lib/apt/lists/*
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb &&     apt-get install -y ./google-chrome-stable_current_amd64.deb &&     rm google-chrome-stable_current_amd64.deb
 
 # Install Miniconda for robust package management
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p /opt/conda && \
-    rm miniconda.sh
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh &&     bash miniconda.sh -b -p /opt/conda &&     rm miniconda.sh
 
 # Add conda to the system PATH
 ENV PATH="/opt/conda/bin:$PATH"
-
-# Accept Anaconda Terms of Service
-RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
 # Create and configure the conda environment
 RUN conda create -n mamba_env python=3.10 -y
@@ -45,9 +29,7 @@ SHELL ["conda", "run", "-n", "mamba_env", "/bin/bash", "-c"]
 
 # Install the known-good, stable combination of PyTorch and Mamba
 RUN conda install pytorch==2.1.0 torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
-RUN pip install packaging ninja && \
-    pip install causal-conv1d==1.4.0 --no-cache-dir && \
-    pip install mamba-ssm==2.2.2 --no-cache-dir
+RUN pip install packaging ninja &&     pip install causal-conv1d==1.4.0 --no-cache-dir &&     pip install mamba-ssm==2.2.2 --no-cache-dir
 
 # --- Application Setup ---
 WORKDIR /opt/ml/code
@@ -56,10 +38,7 @@ RUN pip install -r requirements.txt --no-cache-dir
 COPY . /opt/ml/code/
 
 # --- Diagnostics and Final Configuration ---
-RUN echo "--- Docker Build: COMPREHENSIVE Check ..." && \
-    python -c "import sys; print(f'Py version: {sys.version}'); \
-    import torch; print(f'torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}'); \
-    import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \"__version__\", \"N/A\")}')"
+RUN echo "--- Docker Build: COMPREHENSIVE Check ..." &&     python -c "import sys; print(f'Py version: {sys.version}');     import torch; print(f'torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}');     import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \"__version__\", \"N/A\")}')"
 
 # --- SageMaker Configuration ---
 ENV CONDA_DEFAULT_ENV=mamba_env
