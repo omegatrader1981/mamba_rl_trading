@@ -1,6 +1,6 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# FINAL PRODUCTION VERSION: With all dependency fixes and public base image.
-FROM nvidia/cuda:11.8-devel-ubuntu22.04
+# FINAL PRODUCTION VERSION: Using PyTorch base image for reliability.
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-devel
 # --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
@@ -22,23 +22,7 @@ RUN apt-get update && \
     apt-get install -y ./google-chrome-stable_current_amd64.deb && \
     rm google-chrome-stable_current_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
-# Install Miniconda for robust package management
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p /opt/conda && \
-    rm miniconda.sh
-# Add conda to the system PATH
-ENV PATH="/opt/conda/bin:$PATH"
-# Accept Anaconda Terms of Service before creating the environment
-RUN conda config --set channel_priority flexible && \
-    conda config --add channels conda-forge && \
-    conda config --add channels pytorch && \
-    conda config --add channels nvidia
-# Create conda environment
-RUN conda create -n mamba_env python=3.10 -y
-# Set the shell to use the conda environment for all subsequent RUN commands
-SHELL ["conda", "run", "-n", "mamba_env", "/bin/bash", "-c"]
-# Install the known-good, stable combination of PyTorch and Mamba
-RUN conda install pytorch==2.1.0 torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+# PyTorch is already installed in the base image, so we can directly install Mamba dependencies
 RUN pip install packaging ninja && \
     pip install causal-conv1d==1.4.0 --no-cache-dir && \
     pip install mamba-ssm==2.2.2 --no-cache-dir
@@ -58,8 +42,6 @@ RUN echo "--- Docker Build: COMPREHENSIVE Check ---" && \
     python /tmp/check.py && \
     rm /tmp/check.py
 # --- SageMaker Configuration ---
-ENV CONDA_DEFAULT_ENV=mamba_env
-ENV PATH="/opt/conda/envs/mamba_env/bin:$PATH"
 ENV SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code
 ENV SAGEMAKER_PROGRAM=src/train.py
-ENTRYPOINT ["conda", "run", "-n", "mamba_env", "python", "-m", "sagemaker_training.cli.train"]
+ENTRYPOINT ["python", "-m", "sagemaker_training.cli.train"]
