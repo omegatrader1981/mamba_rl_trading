@@ -1,5 +1,5 @@
 # src/model/mamba_extractor.py
-# <<< NEW MODULE: Defines the core Mamba neural network architecture. >>>
+# <<< FINAL CORRECTED VERSION: Moves input tensor to the correct GPU device. >>>
 
 import torch
 import torch.nn as nn
@@ -48,13 +48,11 @@ class MambaFeaturesExtractor(BaseFeaturesExtractor):
             for _ in range(num_mamba_layers)
         ])
         
-        # Inter-layer normalization for stability
         self.inter_layer_norms = nn.ModuleList([nn.LayerNorm(mamba_d_model) for _ in range(num_mamba_layers)])
         
         self.fc_out = nn.Linear(mamba_d_model, features_dim)
         self.activation_out = activation_fn_class()
 
-        # Store cleaning parameters
         self.input_nan_inf_replacement = input_nan_inf_replacement
         self.input_clipping_value = input_clipping_value
 
@@ -67,7 +65,13 @@ class MambaFeaturesExtractor(BaseFeaturesExtractor):
         return x
 
     def forward(self, observations: dict[str, torch.Tensor]) -> torch.Tensor:
-        x = observations['features'].float()
+        x = observations['features']
+
+        # <<< THE FIX IS HERE: Move the input tensor to the same device as the model. >>>
+        # This is the critical step that solves the "Expected x.is_cuda()" error.
+        device = next(self.parameters()).device
+        x = x.to(device).float()
+        
         x = self._clean_input(x)
         
         x = self.input_proj(x)
@@ -75,13 +79,11 @@ class MambaFeaturesExtractor(BaseFeaturesExtractor):
 
         for i, mamba_block in enumerate(self.mamba_layers):
             x = mamba_block(x)
-            # Apply LayerNorm after every Mamba layer
             x = self.inter_layer_norms[i](x)
             if torch.isnan(x).any() or torch.isinf(x).any():
                 log.error(f"NaN/Inf detected after Mamba layer {i+1}. Returning zeros.")
                 return torch.zeros(x.shape[0], self._features_dim, device=x.device)
 
-        # Use the features from the last time step for the final MLP heads
         last_time_step_features = x[:, -1, :]
         
         extracted_features = self.fc_out(last_time_step_features)
