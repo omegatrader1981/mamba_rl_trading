@@ -1,6 +1,6 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# FINAL PRODUCTION VERSION: With all dependency and TOS fixes.
-FROM nvcr.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
+# FINAL PRODUCTION VERSION: With all dependency fixes and public base image.
+FROM nvidia/cuda:11.8-devel-ubuntu22.04
 # --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
