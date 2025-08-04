@@ -31,16 +31,11 @@ WORKDIR /opt/ml/code
 COPY requirements.txt /opt/ml/code/requirements.txt
 RUN pip install -r requirements.txt --no-cache-dir
 COPY . /opt/ml/code/
-# --- Diagnostics and Final Configuration ---
-# Create a simple Python script for diagnostics to avoid escaping issues
-RUN echo 'import sys, torch, mamba_ssm' > /tmp/check.py && \
-    echo 'print(f"Python: {sys.version}")' >> /tmp/check.py && \
-    echo 'print(f"PyTorch: {torch.__version__}")' >> /tmp/check.py && \
-    echo 'print(f"CUDA Available: {torch.cuda.is_available()}")' >> /tmp/check.py && \
-    echo 'print(f"Mamba SSM: {getattr(mamba_ssm, \"__version__\", \"N/A\")}")' >> /tmp/check.py
+# --- Simple Diagnostics Check ---
 RUN echo "--- Docker Build: COMPREHENSIVE Check ---" && \
-    python /tmp/check.py && \
-    rm /tmp/check.py
+    python -c "import torch; print('PyTorch:', torch.__version__)" && \
+    python -c "import torch; print('CUDA Available:', torch.cuda.is_available())" && \
+    python -c "import mamba_ssm; print('Mamba SSM: OK')"
 # --- SageMaker Configuration ---
 ENV SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code
 ENV SAGEMAKER_PROGRAM=src/train.py
