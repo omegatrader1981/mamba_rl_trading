@@ -1,12 +1,13 @@
 # launch_configs.yaml
-# Updated to use spot instances (you have quota for these!)
+# Central configuration for all SageMaker job types.
 # --- Utility & Diagnostic Jobs ---
 smoke_test:
-  instance_type: "ml.g4dn.xlarge"
+  # <<< FIXED: Using spot instances (you have quota) and extended time >>>
+  instance_type: "ml.g4dn.xlarge" # GPU instance
   instance_count: 1
   volume_size_gb: 30
-  use_spot: true  # <<<< CHANGED: Use spot instances (you have quota for 3)
-  max_run_seconds: 3600 # 1 hour timeout
+  use_spot: true  # <<<< CRITICAL FIX: Must use spot (you only have spot quota)
+  max_run_seconds: 10800 # 3 hours - good increase from 1 hour
   base_job_name_prefix: "mamba-{{instrument}}-smoke-test"
   hydra_experiment: "smoke_test"
 
@@ -15,8 +16,8 @@ phase5a_explore_hpo:
   instance_type: "ml.g4dn.xlarge"
   instance_count: 1
   volume_size_gb: 80
-  use_spot: true  # Already using spot - good!
-  max_run_seconds: 43200
+  use_spot: true
+  max_run_seconds: 43200 # 12 hours
   base_job_name_prefix: "mamba-{{instrument}}-p5a-explore"
   hydra_experiment: "explore"
 
@@ -24,8 +25,8 @@ phase5b_refine_hpo:
   instance_type: "ml.g4dn.2xlarge"
   instance_count: 1
   volume_size_gb: 80
-  use_spot: true  # Already using spot - good!
-  max_run_seconds: 86400
+  use_spot: true
+  max_run_seconds: 86400 # 24 hours
   base_job_name_prefix: "mamba-{{instrument}}-p5b-refine"
   hydra_experiment: "refine"
 
@@ -34,8 +35,8 @@ phase6_sac_hpo:
   instance_type: "ml.g5.xlarge"  # <<<< FIXED: You have quota for xlarge, not 2xlarge
   instance_count: 1
   volume_size_gb: 100
-  use_spot: true  # Already using spot - good!
-  max_run_seconds: 172800
+  use_spot: true
+  max_run_seconds: 172800 # 48 hours
   base_job_name_prefix: "mamba-{{instrument}}-p6-sac"
   hydra_experiment: "sac_hpo"
 
@@ -44,7 +45,7 @@ final_training:
   instance_type: "ml.g4dn.2xlarge"
   instance_count: 1
   volume_size_gb: 80
-  use_spot: true  # <<<< CHANGED: Use spot for final training too
-  max_run_seconds: 86400
+  use_spot: true  # <<<< CHANGED: Must use spot (no on-demand quota)
+  max_run_seconds: 86400 # 24 hours
   base_job_name_prefix: "mamba-{{instrument}}-final-train"
   hydra_experiment: "final_train"

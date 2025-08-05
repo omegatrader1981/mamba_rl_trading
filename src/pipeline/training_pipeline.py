@@ -1,10 +1,10 @@
 # src/pipeline/training_pipeline.py
-# <<< CORRECTED: Added missing 'import os'. >>>
+# <<< CORRECTED: Added SageMaker model directory support >>>
 
 import pandas as pd
 import logging
 import joblib
-import os  # <<< THE FIX IS HERE
+import os
 import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 from typing import List
@@ -33,7 +33,13 @@ def train_and_evaluate_model(
     if not best_params:
         raise RuntimeError("Hyperparameter optimization failed to produce best parameters.")
     
-    output_dir = os.getcwd()
+    # <<< SAGEMAKER FIX: Use SageMaker model directory for final model >>>
+    sagemaker_model_dir = "/opt/ml/model"
+    output_dir = os.getcwd()  # Keep this for other outputs
+    
+    # Ensure SageMaker model directory exists
+    os.makedirs(sagemaker_model_dir, exist_ok=True)
+    
     best_params_path = os.path.join(output_dir, cfg.saving.best_params_filename)
     joblib.dump(best_params, best_params_path)
     log.info(f"Best HPO parameters saved to {best_params_path}")
@@ -78,13 +84,50 @@ def train_and_evaluate_model(
     }
     
     final_model = PPO(MambaActorCriticPolicy, final_env, policy_kwargs=policy_kwargs, **ppo_params)
-    final_model.learn(total_timesteps=cfg.training.total_timesteps)
     
-    final_model_path = os.path.join(output_dir, cfg.saving.final_model_filename)
-    final_model.save(final_model_path)
-    log.info(f"Final model saved to {final_model_path}")
+    # <<< ENHANCED LOGGING: Add episode progress tracking >>>
+    log.info(f"Starting training for {cfg.training.total_timesteps} timesteps...")
+    
+    # Add callback for progress monitoring
+    class ProgressCallback:
+        def __init__(self, log_freq=1000):
+            self.log_freq = log_freq
+            self.n_calls = 0
+            
+        def __call__(self, locals_, globals_):
+            self.n_calls += 1
+            if self.n_calls % self.log_freq == 0:
+                log.info(f"Training progress: {self.n_calls} steps completed")
+            return True
+    
+    progress_callback = ProgressCallback()
+    final_model.learn(total_timesteps=cfg.training.total_timesteps, callback=progress_callback)
+    
+    # <<< CRITICAL FIX: Save model to SageMaker directory >>>
+    # Save to SageMaker model directory (creates model.tar.gz)
+    final_model_sagemaker_path = os.path.join(sagemaker_model_dir, "final_model")
+    final_model.save(final_model_sagemaker_path)
+    log.info(f"Final model saved to SageMaker model directory: {final_model_sagemaker_path}")
+    
+    # Also save to output directory for local access
+    final_model_local_path = os.path.join(output_dir, cfg.saving.final_model_filename)
+    final_model.save(final_model_local_path)
+    log.info(f"Final model also saved locally to: {final_model_local_path}")
+    
+    # <<< ADDITIONAL: Save training metadata to SageMaker model directory >>>
+    metadata = {
+        'best_params': best_params,
+        'feature_cols': feature_cols,
+        'model_config': final_full_cfg,
+        'training_timesteps': cfg.training.total_timesteps
+    }
+    metadata_path = os.path.join(sagemaker_model_dir, "training_metadata.pkl")
+    joblib.dump(metadata, metadata_path)
+    log.info(f"Training metadata saved to: {metadata_path}")
 
     log.info("Evaluating final model on unseen test data...")
     evaluate_agent(final_model, df_test_s, feature_cols, final_full_cfg, output_dir=output_dir)
     
     log.info("--- Model Training & Evaluation Pipeline COMPLETED ---")
+    log.info(f"Model artifacts saved to SageMaker model directory: {sagemaker_model_dir}")
+    log.info("SageMaker will automatically create model.tar.gz from this directory")
