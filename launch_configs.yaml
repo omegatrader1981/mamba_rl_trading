@@ -3,13 +3,14 @@
 
 # --- Utility & Diagnostic Jobs ---
 smoke_test:
-  instance_type: "ml.m5.large" # Cheap CPU instance, perfect for testing the pipeline
+  # <<< THE FIX IS HERE: Switched to a GPU instance. >>>
+  instance_type: "ml.g4dn.xlarge" # GPU instance required for CUDA operations
   instance_count: 1
   volume_size_gb: 30
-  use_spot: false # Use on-demand for a quick, guaranteed start
-  max_run_seconds: 3600 # 1 hour timeout (should finish in minutes)
+  use_spot: false
+  max_run_seconds: 3600 # 1 hour timeout
   base_job_name_prefix: "mamba-{{instrument}}-smoke-test"
-  hydra_experiment: "smoke_test" # This points to conf/experiment/smoke_test.yaml
+  hydra_experiment: "smoke_test"
 
 # --- Phase 5: PPO Baseline ---
 phase5a_explore_hpo:
@@ -17,7 +18,7 @@ phase5a_explore_hpo:
   instance_count: 1
   volume_size_gb: 80
   use_spot: true
-  max_run_seconds: 43200 # 12 hours
+  max_run_seconds: 43200
   base_job_name_prefix: "mamba-{{instrument}}-p5a-explore"
   hydra_experiment: "explore"
 
@@ -26,26 +27,26 @@ phase5b_refine_hpo:
   instance_count: 1
   volume_size_gb: 80
   use_spot: true
-  max_run_seconds: 86400 # 24 hours
+  max_run_seconds: 86400
   base_job_name_prefix: "mamba-{{instrument}}-p5b-refine"
   hydra_experiment: "refine"
 
 # --- Phase 6: SAC Active Trader (Placeholder) ---
 phase6_sac_hpo:
-  instance_type: "ml.g5.2xlarge" # Using a more powerful instance for SAC
+  instance_type: "ml.g5.2xlarge"
   instance_count: 1
   volume_size_gb: 100
   use_spot: true
-  max_run_seconds: 172800 # 48 hours
+  max_run_seconds: 172800
   base_job_name_prefix: "mamba-{{instrument}}-p6-sac"
-  hydra_experiment: "sac_hpo" # This would point to a new conf/experiment/sac_hpo.yaml
+  hydra_experiment: "sac_hpo"
 
 # --- Final Model Training (Example) ---
 final_training:
   instance_type: "ml.g4dn.2xlarge"
   instance_count: 1
   volume_size_gb: 80
-  use_spot: false # Use on-demand for the final, critical training run
-  max_run_seconds: 86400 # 24 hours
+  use_spot: false
+  max_run_seconds: 86400
   base_job_name_prefix: "mamba-{{instrument}}-final-train"
-  hydra_experiment: "final_train" # A config for a non-HPO run
+  hydra_experiment: "final_train"
