@@ -1,5 +1,5 @@
 # src/optimize/model_builder.py
-# <<< UPDATED: Now uses the robust get_device utility. >>>
+# FINAL CORRECTED VERSION: Explicitly moves the entire policy to the correct device.
 
 import torch.nn as nn
 from stable_baselines3 import PPO
@@ -7,9 +7,8 @@ from stable_baselines3.common.vec_env import VecEnv
 import optuna
 from omegaconf import DictConfig
 
-# <<< Import from our refactored project structure >>>
+# Import from our refactored project structure
 from src.model import MambaFeaturesExtractor, MambaActorCriticPolicy
-# <<< CHANGE APPLIED: Import get_device from its new, correct location >>>
 from src.torch_utils import get_device
 
 def create_ppo_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> PPO:
@@ -50,8 +49,6 @@ def create_ppo_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> PPO:
         optimizer_kwargs=dict(weight_decay=weight_decay)
     )
 
-    # <<< CHANGE APPLIED: Use the robust get_device utility >>>
-    # This ensures we check for CUDA availability instead of just trusting the config.
     device = get_device(cfg)
 
     ppo_params = {
@@ -62,4 +59,9 @@ def create_ppo_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> PPO:
     }
 
     model = PPO(MambaActorCriticPolicy, env, policy_kwargs=policy_kwargs, **ppo_params)
+    
+    # <<< THE FIX IS HERE: Explicitly ensure the entire policy and all its sub-modules
+    # (including the Mamba extractor) are on the correct device. >>>
+    model.policy = model.policy.to(device)
+    
     return model
