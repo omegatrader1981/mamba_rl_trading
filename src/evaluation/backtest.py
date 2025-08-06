@@ -54,7 +54,8 @@ class BacktestRunner:
         positions_held.append(initial_position)
 
         pbar = tqdm(total=len(self.env.get_attr('df')[0]) - self.env.get_attr('current_step')[0], desc="Backtest Progress")
-
+        
+        info = {} # Initialize info dict
         while not (terminated or truncated):
             prev_position = self.env.get_attr('account')[0].position
             action, _ = self.model.predict(obs, deterministic=self.deterministic)
@@ -75,16 +76,13 @@ class BacktestRunner:
         equity_df = pd.DataFrame({'portfolio_value': portfolio_values}, index=pd.to_datetime(timestamps, utc=True))
         positions_df = pd.DataFrame({'position': positions_held}, index=pd.to_datetime(timestamps, utc=True))
 
-        # Use the final info dict from the last step
-        final_info = self.env.get_attr('last_info')[0] if hasattr(self.env.envs[0], 'last_info') else info
-
         return BacktestResult(
             trades=trades,
             equity_curve=equity_df,
             positions=positions_df,
             initial_balance=self.initial_balance,
             final_balance=portfolio_values[-1],
-            metrics=final_info
+            metrics=info # Use the info dict from the last step of the loop
         )
 
     def _log_trade_transitions(self, info: Dict, prev_pos: int, action: int, current_trade: Dict, trades: List) -> Dict:

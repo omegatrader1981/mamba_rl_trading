@@ -1,42 +1,58 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# FINAL PRODUCTION VERSION: Using PyTorch base image for reliability.
-FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-devel
+# FINAL PRODUCTION VERSION: Installs mamba-ssm from source for full compatibility.
+
+# Use the PyTorch 2.3 / CUDA 12.1 platform
+FROM docker.io/pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+
 # --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-# Install system dependencies, including all Chrome dependencies.
-RUN apt-get update && apt-get install -y \
-    wget git build-essential ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 \
-    libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 \
-    libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 \
-    libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
-    libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 lsb-release \
-    xdg-utils libvulkan1 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-# Install Google Chrome for the Kaleido backend.
+ENV PATH="/usr/local/cuda/bin:${PATH}"
+
+# Install system dependencies, including git for cloning.
 RUN apt-get update && \
-    wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
-    rm google-chrome-stable_current_amd64.deb && \
-    rm -rf /var/lib/apt/lists/*
-# PyTorch is already installed in the base image, so we can directly install Mamba dependencies
-RUN pip install packaging ninja && \
-    pip install causal-conv1d==1.4.0 --no-cache-dir && \
-    pip install mamba-ssm==2.2.2 --no-cache-dir
-# --- Application Setup ---
+    apt-get install -y --no-install-recommends wget unzip lsb-release git && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- Python Environment Setup ---
 WORKDIR /opt/ml/code
+
+# This multi-step process is optimized for Docker layer caching.
+# 1. Install all dependencies from requirements.txt first.
 COPY requirements.txt /opt/ml/code/requirements.txt
-RUN pip install -r requirements.txt --no-cache-dir
+RUN /opt/conda/bin/python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    /opt/conda/bin/python -m pip install --no-cache-dir sagemaker-training packaging && \
+    echo "Starting pip install from requirements.txt..." && \
+    /opt/conda/bin/python -m pip install --no-cache-dir --timeout=600 \
+        --extra-index-url https://download.pytorch.org/whl/cu121 \
+        -r requirements.txt && \
+    echo "Finished pip install from requirements.txt."
+
+# 2. Clone and install mamba-ssm and causal-conv1d from source.
+RUN git clone https://github.com/state-spaces/mamba.git && \
+    cd mamba && \
+    pip install . && \
+    pip install causal-conv1d>=1.4.1 && \
+    cd .. && rm -rf mamba
+
+# Copy the entire project context AFTER all dependencies are installed.
 COPY . /opt/ml/code/
-# --- Simple Diagnostics Check ---
-RUN echo "--- Docker Build: COMPREHENSIVE Check ---" && \
-    python -c "import torch; print('PyTorch:', torch.__version__)" && \
-    python -c "import torch; print('CUDA Available:', torch.cuda.is_available())" && \
-    python -c "import mamba_ssm; print('Mamba SSM: OK')"
+
+# --- Diagnostics and Final Configuration ---
+# This comprehensive check verifies that all critical components are installed and compatible.
+RUN echo "--- Docker Build: Verifying final directory structure in /opt/ml/code/ ---" && \
+    ls -R /opt/ml/code && \
+    echo "--- Docker Build: COMPREHENSIVE Check ..." && \
+    /opt/conda/bin/python -c "import sys; print(f'Py version: {sys.version}'); \
+    import torch; print(f'torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}'); \
+    import transformers; print(f'transformers: {transformers.__version__}'); \
+    import safetensors; print(f'safetensors: {safetensors.__version__}'); \
+    import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \"__version__\", \"OK - Installed from source\")}')"
+
 # --- SageMaker Configuration ---
-ENV SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code
-ENV SAGEMAKER_PROGRAM=src/train.py
-ENTRYPOINT ["python", "-m", "sagemaker_training.cli.train"]
+ENV SAGEMAKER_SUBMIT_DIRECTORY /opt/ml/code
+ENV SAGEMAKER_PROGRAM src/train.py
+ENTRYPOINT ["/opt/conda/bin/python", "-m", "sagemaker_training.cli.train"]
