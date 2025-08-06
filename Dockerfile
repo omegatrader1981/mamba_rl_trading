@@ -105,25 +105,18 @@ RUN pip install mamba-ssm==2.0.4 \
 COPY . /opt/ml/code/
 
 # --- Comprehensive Verification (catches errors early) ---
-RUN echo "=== COMPREHENSIVE SYSTEM VERIFICATION ===" && \
-    echo "Python version:" && python3 --version && \
-    echo "Pip version:" && pip --version && \
-    echo "CUDA version:" && nvcc --version && \
-    echo "GPU driver info:" && nvidia-smi || echo "No GPU in build environment (OK)" && \
-    echo "=== PYTHON PACKAGE VERIFICATION ===" && \
-    python3 -c "
-import sys; print(f'✅ Python: {sys.version}')
-import torch; print(f'✅ PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')
-import torchvision; print(f'✅ TorchVision: {torchvision.__version__}')
-try:
-    import causal_conv1d; print(f'✅ causal-conv1d: {causal_conv1d.__version__}')
-except: print('⚠️  causal-conv1d version unknown but importable')
-try:
-    import mamba_ssm; print(f'✅ mamba-ssm: {mamba_ssm.__version__}')
-except Exception as e: print(f'❌ mamba-ssm FAILED: {e}'); exit(1)
-import stable_baselines3; print(f'✅ stable-baselines3: {stable_baselines3.__version__}')
-print('🎉 ALL CRITICAL PACKAGES LOADED SUCCESSFULLY!')
-"
+RUN echo "=== SYSTEM VERIFICATION ===" && \
+    python3 --version && \
+    pip --version && \
+    nvcc --version && \
+    echo "=== PACKAGE VERIFICATION ===" && \
+    python3 -c "import sys; print('Python:', sys.version)" && \
+    python3 -c "import torch; print('PyTorch:', torch.__version__, 'CUDA:', torch.cuda.is_available())" && \
+    python3 -c "import torchvision; print('TorchVision:', torchvision.__version__)" && \
+    python3 -c "import causal_conv1d; print('causal-conv1d imported successfully')" && \
+    python3 -c "import mamba_ssm; print('mamba-ssm:', mamba_ssm.__version__)" && \
+    python3 -c "import stable_baselines3; print('stable-baselines3:', stable_baselines3.__version__)" && \
+    echo "✅ ALL CRITICAL PACKAGES LOADED SUCCESSFULLY!"
 
 # Final directory listing for debugging
 RUN echo "=== FINAL PROJECT STRUCTURE ===" && find /opt/ml/code -type f -name "*.py" | head -10
