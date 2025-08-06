@@ -1,5 +1,5 @@
 # <<< REFACTORED: Lean orchestrator for the trading environment >>>
-# <<< DEFINITIVE FIX: Implements unconditional forced exits to solve infinite loops. >>>
+# <<< DEFINITIVE FINAL FIX: Implements a two-lock system (forced exits + entry prohibition) to solve all session-based loops. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -22,7 +22,7 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Definitive Fix Version)...")
+        log.info("Initializing FuturesTradingEnv (Definitive Final Fix Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
@@ -136,6 +136,21 @@ class FuturesTradingEnv(gym.Env):
         slippage_in_points = slippage_in_ticks * self.tick_size
         return base_price + slippage_in_points if order_side == 1 else base_price - slippage_in_points
 
+    # <<< THE FIX IS HERE: New helper method to check for forbidden trading times >>>
+    def _is_trading_forbidden(self) -> bool:
+        """Checks if entering a new trade is forbidden at the current timestamp."""
+        ts = self.df.index[self.current_step]
+        
+        # No new positions after Friday 20:00
+        if ts.weekday() == 4 and ts.hour >= 20:
+            return True
+            
+        # No new positions on the absolute final bar of the dataset
+        if self.current_step >= len(self.df) - 1:
+            return True
+            
+        return False
+
     def _execute_agent_trade(self, action: int):
         self._is_invalid_action = False
         self._trade_occurred_this_step = False
@@ -144,15 +159,23 @@ class FuturesTradingEnv(gym.Env):
         if action == self.ACTION_HOLD:
             return
 
+        # <<< THE FIX IS HERE: Proactively block entry actions during forbidden times >>>
         if action in [self.ACTION_ENTER_LONG, self.ACTION_ENTER_SHORT]:
+            if self._is_trading_forbidden():
+                self._is_invalid_action = True
+                log.debug(f"Trade blocked: Entry not allowed at this time ({self.df.index[self.current_step]})")
+                return
+                
             if self.account.position == 0:
                 order_side = 1 if action == self.ACTION_ENTER_LONG else -1
                 if (price := self._get_agent_execution_price(order_side)) is not None:
                     self.account.open_position(order_side, price, trade_size)
                     self._trade_occurred_this_step = True
-            else: self._is_invalid_action = True
+            else: 
+                self._is_invalid_action = True
             return
 
+        # Exit trades are always allowed (agent can exit voluntarily at any time)
         if action == self.ACTION_EXIT_POSITION:
             if self.account.position != 0:
                 order_side = -self.account.position
@@ -160,7 +183,8 @@ class FuturesTradingEnv(gym.Env):
                     pnl, _ = self.account.close_position(price)
                     self._info_realized_pnl_on_close = pnl
                     self._trade_occurred_this_step = True
-            else: self._is_invalid_action = True
+            else: 
+                self._is_invalid_action = True
             return
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[Dict[str, np.ndarray], dict]:
@@ -181,7 +205,7 @@ class FuturesTradingEnv(gym.Env):
         if not forced_exit_occurred:
             self._execute_agent_trade(action)
         else:
-            self._trade_occurred_this_step = True # A trade (the close) did occur
+            self._trade_occurred_this_step = True
             self._is_invalid_action = False
             if action != self.ACTION_HOLD:
                 log.debug("Agent action overridden by forced exit.")
@@ -208,9 +232,7 @@ class FuturesTradingEnv(gym.Env):
         
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
-    # <<< THE FIX IS HERE: A NEW, UNCONDITIONAL FORCED EXIT METHOD >>>
     def _force_close_position_now(self):
-        """Unconditionally closes any open position at the current bar's close price."""
         if self.account.position == 0:
             return
         
@@ -219,19 +241,15 @@ class FuturesTradingEnv(gym.Env):
         self._info_realized_pnl_on_close = pnl
         log.info(f"Forced close executed at current price: {execution_price:.2f}, PnL: {pnl:.2f}")
 
-    # <<< THE FIX IS HERE: THIS METHOD IS NOW GUARANTEED TO SUCCEED >>>
     def _handle_forced_exits(self) -> bool:
-        """Handles forced exits and returns True if an exit was forced, False otherwise."""
         action_forced = False
         ts = self.df.index[self.current_step]
         
-        # End of week exit
         if self.account.position != 0 and ts.weekday() == 4 and ts.hour >= 20:
             log.info(f"END-OF-WEEK EXIT: Forcing close of position.")
             self._force_close_position_now()
             action_forced = True
             
-        # End of data exit
         if self.account.position != 0 and (self.current_step >= len(self.df) - 1):
             log.info(f"END-OF-DATA: Forcing close of position on final bar.")
             self._force_close_position_now()
