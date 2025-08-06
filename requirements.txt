@@ -1,17 +1,23 @@
-# requirements.txt
-# PyTorch with CUDA 11.8 support - use extra-index-url to keep PyPI access
---extra-index-url https://download.pytorch.org/whl/cu118
-torch==2.1.0
-torchvision==0.16.0
-torchaudio==2.1.0
+# <<< DEFINITIVE FINAL VERSION: Pins the Hugging Face ecosystem to resolve dependency conflicts. >>>
 
-# Core ML/RL (now can access PyPI)
-stable-baselines3[extra]>=1.8.0
+# Core ML/RL
+stable-baselines3[extra]>=2.0.0
+
+# PyTorch 2.3 / CUDA 12.1 platform
+torch==2.3.0+cu121
+torchvision==0.18.0+cu121
+torchaudio==2.3.0+cu121
+
+# <<< THE FIX IS HERE: Pinning the Hugging Face ecosystem to a known-good, compatible state >>>
+transformers==4.40.0
+safetensors==0.4.3
+huggingface-hub==0.22.0
 
 # Core libraries
 gymnasium>=0.28.0
+packaging
 pandas>=1.5.0,<2.0.0
-numpy>=1.21.0,<2.0.0
+numpy>=1.21.0
 ta>=0.10.0
 scikit-learn>=1.1.0
 pandas_ta
@@ -35,7 +41,6 @@ IPython>=7.2.0
 joblib>=1.1.0
 tqdm>=4.60.0
 PyYAML>=6.0
-sagemaker-training
 
 # Parallelization
 dask>=2.3.0
