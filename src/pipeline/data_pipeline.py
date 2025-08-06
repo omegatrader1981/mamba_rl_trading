@@ -1,5 +1,4 @@
-# src/pipeline/data_pipeline.py
-# <<< FINAL CORRECTED VERSION: Decouples scaler path from config interpolation. >>>
+# <<< DEFINITIVE FINAL FIX: Ensures all datasets (train, val, test) have a 'source_regime' column. >>>
 
 import pandas as pd
 import logging
@@ -17,7 +16,7 @@ def prepare_data(cfg: DictConfig) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFr
     """
     Executes the full data preparation pipeline with environment-aware pathing.
     """
-    log.info("--- Starting Data Preparation Pipeline ---")
+    log.info("--- Starting Data Preparation Pipeline (Final Corrected Version) ---")
     
     if is_running_in_sagemaker():
         base_data_dir = os.environ.get('SM_CHANNEL_TRAINING', '/opt/ml/input/data/training')
@@ -30,29 +29,38 @@ def prepare_data(cfg: DictConfig) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFr
     
     full_df = load_futures_data(filepaths, **cfg.data.cleaning)
 
+    # --- Training Data ---
     train_regimes = {k: v for k, v in cfg.data.regime_definitions.items() if k.startswith('train_')}
     df_train_raw = build_regime_dataset(full_df, train_regimes)
     
+    # --- Validation Data ---
     val_dates = cfg.data.regime_definitions.validation_set[0]
-    df_val_raw = full_df.loc[val_dates[0]:val_dates[1]]
+    df_val_raw = full_df.loc[val_dates[0]:val_dates[1]].copy()
+    # <<< THE FIX IS HERE: Explicitly assign a source_regime >>>
+    df_val_raw['source_regime'] = 'validation_set'
     
+    # --- Test Data ---
     test_dates = cfg.data.regime_definitions.test_set[0]
-    df_test_raw = full_df.loc[test_dates[0]:test_dates[1]]
+    df_test_raw = full_df.loc[test_dates[0]:test_dates[1]].copy()
+    # <<< THE FIX IS HERE: Explicitly assign a source_regime >>>
+    df_test_raw['source_regime'] = 'test_set'
 
-    df_train_feat, feature_cols = create_feature_set(df_train_raw, cfg, df_train_raw)
-    df_val_feat, _ = create_feature_set(df_val_raw, cfg, df_train_raw)
-    df_test_feat, _ = create_feature_set(df_test_raw, cfg, df_train_raw)
+    log.info("All raw datasets (train, val, test) now have a 'source_regime' column.")
 
+    # --- Feature Creation ---
+    # The training data for fitting HMM and scalers remains the original spliced training set.
+    df_train_for_fitting = df_train_raw.copy()
+
+    df_train_feat, feature_cols = create_feature_set(df_train_raw, cfg, df_train_for_fitting)
+    df_val_feat, _ = create_feature_set(df_val_raw, cfg, df_train_for_fitting)
+    df_test_feat, _ = create_feature_set(df_test_raw, cfg, df_train_for_fitting)
+
+    # --- Scaling ---
     dfs_to_scale = {"train": df_train_feat, "validation": df_val_feat, "test": df_test_feat}
     
-    # <<< THE FIX IS HERE: Hardcode the scaler filename to remove the dependency. >>>
-    # Hydra ensures that os.getcwd() points to the correct, unique output directory
-    # for this run, both locally and on SageMaker. We create a simple, reliable
-    # path for this intermediate artifact.
     output_dir = os.getcwd()
-    scaler_filename = "scaler.joblib" # Simple, robust filename
+    scaler_filename = "scaler.joblib"
     scaler_path = os.path.join(output_dir, scaler_filename)
-    log.info(f"Scaler will be saved to a simple, robust path: {scaler_path}")
     
     scaled_dfs, scaler = fit_and_transform_scaler(df_train_feat, dfs_to_scale, feature_cols, scaler_path)
 
