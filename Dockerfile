@@ -37,11 +37,16 @@ RUN apt-get update && \
     python3.10 \
     python3.10-dev \
     python3.10-distutils \
-    python3-pip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create python3 symlink to python3.10
+# Remove system pip to avoid conflicts, then install fresh pip
+RUN apt-get purge -y python3-pip || true && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python3.10 get-pip.py && \
+    rm get-pip.py
+
+# Create python symlinks
 RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
     ln -sf /usr/bin/python3.10 /usr/bin/python
 
@@ -61,11 +66,7 @@ RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86
 WORKDIR /opt/ml/code
 
 # Upgrade pip and essential tools (prevents wheel building issues)
-RUN python3 -m pip install --no-cache-dir --upgrade \
-    pip==23.2.1 \
-    setuptools==68.1.2 \
-    wheel==0.41.2 \
-    packaging==23.1
+RUN python3 -m pip install --upgrade pip setuptools wheel packaging
 
 # Install SageMaker dependencies first
 RUN pip install --no-cache-dir \
