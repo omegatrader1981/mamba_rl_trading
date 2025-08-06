@@ -1,5 +1,5 @@
 # <<< REFACTORED: Lean orchestrator for the trading environment >>>
-# <<< DEFINITIVE FINAL FIX: Implements a two-lock system (forced exits + entry prohibition) to solve all session-based loops. >>>
+# <<< DEFINITIVE FINAL FIX 2.0: Implements a regime-aware, three-lock system to solve all session and data boundary loops. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -22,10 +22,18 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Definitive Final Fix Version)...")
+        log.info("Initializing FuturesTradingEnv (Regime-Aware Final Fix Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
+        
+        # <<< THE FIX IS HERE: Make the environment aware of regime boundaries >>>
+        if 'source_regime' in self.df.columns:
+            self.is_regime_boundary = (self.df['source_regime'] != self.df['source_regime'].shift(1)).fillna(False)
+            log.info("Regime boundaries detected and will be enforced.")
+        else:
+            self.is_regime_boundary = pd.Series(False, index=self.df.index)
+            log.warning("No 'source_regime' column found. Running without regime boundary enforcement.")
         
         self.feature_cols = feature_cols
         self.n_features = len(feature_cols)
@@ -68,7 +76,6 @@ class FuturesTradingEnv(gym.Env):
         self.spread_ticks_max = int(self.env_cfg.get('spread_ticks_max', 2))
         self.max_slippage_ticks = float(self.env_cfg.max_slippage_points) / self.tick_size
         self.base_contracts = int(self.env_cfg.get('position_sizing.base_contracts', 1))
-
         self.activity_reward_scale = float(self.env_cfg.get('activity_reward_scale', 0.05))
         self.hold_penalty_scale = float(self.env_cfg.get('hold_penalty_scale', 0.0))
         self.max_consecutive_holds_limit = int(self.env_cfg.get("max_consecutive_holds_limit", 900))
@@ -98,11 +105,7 @@ class FuturesTradingEnv(gym.Env):
         unrealized_pnl_norm = np.clip(unrealized_pnl / pnl_norm_factor, -5.0, 5.0)
         trade_duration_norm = np.clip(self.account.steps_in_trade / self.env_cfg.max_episode_steps, 0.0, 1.0)
         
-        account_info_slice = np.array([
-            balance_norm, float(self.account.position),
-            unrealized_pnl_norm, trade_duration_norm
-        ], dtype=np.float32)
-        
+        account_info_slice = np.array([balance_norm, float(self.account.position), unrealized_pnl_norm, trade_duration_norm], dtype=np.float32)
         account_info_repeated = np.tile(account_info_slice, (self.lookback_window, 1))
         obs_array = np.hstack((features_part, account_info_repeated)).astype(np.float32)
         
@@ -136,16 +139,17 @@ class FuturesTradingEnv(gym.Env):
         slippage_in_points = slippage_in_ticks * self.tick_size
         return base_price + slippage_in_points if order_side == 1 else base_price - slippage_in_points
 
-    # <<< THE FIX IS HERE: New helper method to check for forbidden trading times >>>
+    # <<< THE FIX IS HERE: Enhanced with regime boundary check >>>
     def _is_trading_forbidden(self) -> bool:
         """Checks if entering a new trade is forbidden at the current timestamp."""
-        ts = self.df.index[self.current_step]
+        # Prohibit entry on the first bar of a new, disjointed regime segment
+        if self.is_regime_boundary.iloc[self.current_step]:
+            return True
         
-        # No new positions after Friday 20:00
+        ts = self.df.index[self.current_step]
         if ts.weekday() == 4 and ts.hour >= 20:
             return True
             
-        # No new positions on the absolute final bar of the dataset
         if self.current_step >= len(self.df) - 1:
             return True
             
@@ -159,7 +163,6 @@ class FuturesTradingEnv(gym.Env):
         if action == self.ACTION_HOLD:
             return
 
-        # <<< THE FIX IS HERE: Proactively block entry actions during forbidden times >>>
         if action in [self.ACTION_ENTER_LONG, self.ACTION_ENTER_SHORT]:
             if self._is_trading_forbidden():
                 self._is_invalid_action = True
@@ -175,7 +178,6 @@ class FuturesTradingEnv(gym.Env):
                 self._is_invalid_action = True
             return
 
-        # Exit trades are always allowed (agent can exit voluntarily at any time)
         if action == self.ACTION_EXIT_POSITION:
             if self.account.position != 0:
                 order_side = -self.account.position
@@ -241,10 +243,18 @@ class FuturesTradingEnv(gym.Env):
         self._info_realized_pnl_on_close = pnl
         log.info(f"Forced close executed at current price: {execution_price:.2f}, PnL: {pnl:.2f}")
 
+    # <<< THE FIX IS HERE: Enhanced with regime boundary check >>>
     def _handle_forced_exits(self) -> bool:
         action_forced = False
-        ts = self.df.index[self.current_step]
         
+        # Check for regime boundary first
+        if self.account.position != 0 and self.is_regime_boundary.iloc[self.current_step]:
+            log.info(f"REGIME BOUNDARY EXIT: Forcing close of position at {self.df.index[self.current_step]}.")
+            self._force_close_position_now()
+            action_forced = True
+            return action_forced # Return immediately to prevent double-logging
+
+        ts = self.df.index[self.current_step]
         if self.account.position != 0 and ts.weekday() == 4 and ts.hour >= 20:
             log.info(f"END-OF-WEEK EXIT: Forcing close of position.")
             self._force_close_position_now()
