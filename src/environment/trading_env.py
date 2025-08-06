@@ -1,5 +1,5 @@
 # <<< REFACTORED: Lean orchestrator for the trading environment >>>
-# <<< CRITICAL FIX APPLIED: Prevents infinite loop on forced exits. >>>
+# <<< DEFINITIVE FIX: Implements unconditional forced exits to solve infinite loops. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -9,7 +9,6 @@ import logging
 from omegaconf import DictConfig
 from typing import Dict, Tuple, Optional, List
 
-# <<< Relative imports from our new, organized package >>>
 from .account_state import AccountState
 from .reward_schemes import calculate_pnl_and_shaping_reward
 
@@ -23,7 +22,7 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Refactored)...")
+        log.info("Initializing FuturesTradingEnv (Definitive Fix Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
@@ -33,7 +32,6 @@ class FuturesTradingEnv(gym.Env):
         self.lookback_window = int(self.env_cfg.lookback_window)
         self._start_step = self.lookback_window - 1
 
-        # <<< DELEGATION: Instantiate the AccountState >>>
         self.account = AccountState(
             initial_balance=float(self.env_cfg.initial_balance),
             point_value=float(self.env_cfg.point_value),
@@ -71,7 +69,6 @@ class FuturesTradingEnv(gym.Env):
         self.max_slippage_ticks = float(self.env_cfg.max_slippage_points) / self.tick_size
         self.base_contracts = int(self.env_cfg.get('position_sizing.base_contracts', 1))
 
-        # Reward shaping and penalty params
         self.activity_reward_scale = float(self.env_cfg.get('activity_reward_scale', 0.05))
         self.hold_penalty_scale = float(self.env_cfg.get('hold_penalty_scale', 0.0))
         self.max_consecutive_holds_limit = int(self.env_cfg.get("max_consecutive_holds_limit", 900))
@@ -79,7 +76,7 @@ class FuturesTradingEnv(gym.Env):
 
     def _define_spaces(self):
         self.action_space = spaces.Discrete(4)
-        self.account_info_features = 4  # balance_norm, position, pnl_norm, duration_norm
+        self.account_info_features = 4
         feature_box_shape = (self.lookback_window, self.n_features + self.account_info_features)
         low = np.full(feature_box_shape, -np.inf, dtype=np.float32)
         high = np.full(feature_box_shape, np.inf, dtype=np.float32)
@@ -95,7 +92,6 @@ class FuturesTradingEnv(gym.Env):
         start_idx = end_idx - self.lookback_window
         features_part = self.df[self.feature_cols].iloc[start_idx:end_idx].values
         
-        # Account info features
         balance_norm = self.account.balance / self.account.initial_balance
         unrealized_pnl = self.account.calculate_unrealized_pnl(self._get_current_price())
         pnl_norm_factor = self.account.initial_balance * 0.02
@@ -126,7 +122,7 @@ class FuturesTradingEnv(gym.Env):
         self._info_realized_pnl_on_close = None
         return info
 
-    def _get_execution_price(self, order_side: int) -> Optional[float]:
+    def _get_agent_execution_price(self, order_side: int) -> Optional[float]:
         next_step_idx = self.current_step + 1
         if next_step_idx >= len(self.df): return None
         
@@ -140,7 +136,7 @@ class FuturesTradingEnv(gym.Env):
         slippage_in_points = slippage_in_ticks * self.tick_size
         return base_price + slippage_in_points if order_side == 1 else base_price - slippage_in_points
 
-    def _execute_trade(self, action: int):
+    def _execute_agent_trade(self, action: int):
         self._is_invalid_action = False
         self._trade_occurred_this_step = False
         trade_size = self.base_contracts
@@ -151,7 +147,7 @@ class FuturesTradingEnv(gym.Env):
         if action in [self.ACTION_ENTER_LONG, self.ACTION_ENTER_SHORT]:
             if self.account.position == 0:
                 order_side = 1 if action == self.ACTION_ENTER_LONG else -1
-                if (price := self._get_execution_price(order_side)) is not None:
+                if (price := self._get_agent_execution_price(order_side)) is not None:
                     self.account.open_position(order_side, price, trade_size)
                     self._trade_occurred_this_step = True
             else: self._is_invalid_action = True
@@ -160,7 +156,7 @@ class FuturesTradingEnv(gym.Env):
         if action == self.ACTION_EXIT_POSITION:
             if self.account.position != 0:
                 order_side = -self.account.position
-                if (price := self._get_execution_price(order_side)) is not None:
+                if (price := self._get_agent_execution_price(order_side)) is not None:
                     pnl, _ = self.account.close_position(price)
                     self._info_realized_pnl_on_close = pnl
                     self._trade_occurred_this_step = True
@@ -180,23 +176,22 @@ class FuturesTradingEnv(gym.Env):
     def step(self, action: int) -> Tuple[Dict[str, np.ndarray], float, bool, bool, dict]:
         portfolio_value_before = self.account.portfolio_value(self._get_current_price())
         
-        # <<< THE FIX IS HERE >>>
         forced_exit_occurred = self._handle_forced_exits()
 
-        # If an exit was forced, ignore the agent's action for this step.
         if not forced_exit_occurred:
-            self._execute_trade(action)
+            self._execute_agent_trade(action)
         else:
-            # Ensure we correctly log that no trade occurred from the agent's perspective
-            self._trade_occurred_this_step = False
+            self._trade_occurred_this_step = True # A trade (the close) did occur
             self._is_invalid_action = False
-            # If the agent wanted to do anything but hold, we effectively force a hold.
             if action != self.ACTION_HOLD:
                 log.debug("Agent action overridden by forced exit.")
 
         if self.account.position != 0: self.account.steps_in_trade += 1
-        if action == self.ACTION_HOLD and not forced_exit_occurred: self._consecutive_holds += 1
-        else: self._consecutive_holds = 0
+        
+        if action == self.ACTION_HOLD and not forced_exit_occurred:
+            self._consecutive_holds += 1
+        else:
+            self._consecutive_holds = 0
 
         portfolio_value_after = self.account.portfolio_value(self._get_current_price())
         pnl_component = portfolio_value_after - portfolio_value_before
@@ -213,22 +208,35 @@ class FuturesTradingEnv(gym.Env):
         
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
+    # <<< THE FIX IS HERE: A NEW, UNCONDITIONAL FORCED EXIT METHOD >>>
+    def _force_close_position_now(self):
+        """Unconditionally closes any open position at the current bar's close price."""
+        if self.account.position == 0:
+            return
+        
+        execution_price = self._get_current_price()
+        pnl, _ = self.account.close_position(execution_price)
+        self._info_realized_pnl_on_close = pnl
+        log.info(f"Forced close executed at current price: {execution_price:.2f}, PnL: {pnl:.2f}")
+
+    # <<< THE FIX IS HERE: THIS METHOD IS NOW GUARANTEED TO SUCCEED >>>
     def _handle_forced_exits(self) -> bool:
-        """
-        Handles forced exits and returns True if an exit was forced, False otherwise.
-        """
+        """Handles forced exits and returns True if an exit was forced, False otherwise."""
         action_forced = False
         ts = self.df.index[self.current_step]
+        
         # End of week exit
         if self.account.position != 0 and ts.weekday() == 4 and ts.hour >= 20:
             log.info(f"END-OF-WEEK EXIT: Forcing close of position.")
-            self._execute_trade(self.ACTION_EXIT_POSITION)
+            self._force_close_position_now()
             action_forced = True
+            
         # End of data exit
-        if self.account.position != 0 and (self.current_step == len(self.df) - 1):
+        if self.account.position != 0 and (self.current_step >= len(self.df) - 1):
             log.info(f"END-OF-DATA: Forcing close of position on final bar.")
-            self._execute_trade(self.ACTION_EXIT_POSITION)
+            self._force_close_position_now()
             action_forced = True
+            
         return action_forced
 
     def close(self):
