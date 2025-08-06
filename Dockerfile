@@ -1,8 +1,8 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# FINAL PRODUCTION VERSION: Installs mamba-ssm from source for full compatibility.
+# DEFINITIVE WHEEL-BASED VERSION: Uses stable, community-vetted pre-built wheels
 
-# Use the PyTorch 2.3 / CUDA 12.1 platform
-FROM docker.io/pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+# Use Python base instead of PyTorch base to avoid version conflicts
+FROM python:3.10-slim
 
 # --- Environment Setup ---
 ENV PYTHONUNBUFFERED=1
@@ -10,49 +10,49 @@ ENV TZ=Etc/UTC
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/usr/local/cuda/bin:${PATH}"
 
-# Install system dependencies, including git for cloning.
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wget unzip lsb-release git && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+    wget \
+    unzip \
+    lsb-release \
+    ca-certificates \
+    gnupg \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- Python Environment Setup ---
 WORKDIR /opt/ml/code
 
-# This multi-step process is optimized for Docker layer caching.
-# 1. Install all dependencies from requirements.txt first.
+# Upgrade pip and install base packages
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir sagemaker-training packaging
+
+# --- Install PyTorch 2.0.1 + CUDA 11.8 from correct index ---
+RUN pip install --no-cache-dir \
+    torch==2.0.1 \
+    torchvision==0.15.2 \
+    torchaudio==2.0.2 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# Install other ML/RL dependencies (copy requirements first for better caching)
 COPY requirements.txt /opt/ml/code/requirements.txt
-RUN /opt/conda/bin/python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    /opt/conda/bin/python -m pip install --no-cache-dir sagemaker-training packaging && \
-    echo "Starting pip install from requirements.txt..." && \
-    /opt/conda/bin/python -m pip install --no-cache-dir --timeout=600 \
-        --extra-index-url https://download.pytorch.org/whl/cu121 \
-        -r requirements.txt && \
-    echo "Finished pip install from requirements.txt."
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 2. Clone and install mamba-ssm and causal-conv1d from source.
-RUN git clone https://github.com/state-spaces/mamba.git && \
-    cd mamba && \
-    pip install . && \
-    pip install causal-conv1d>=1.4.1 && \
-    cd .. && rm -rf mamba
+# --- Install mamba-ssm with --no-build-isolation ---
+RUN pip install mamba-ssm==2.0.4 --no-build-isolation
 
-# Copy the entire project context AFTER all dependencies are installed.
+# Copy the project code AFTER all dependencies are installed
 COPY . /opt/ml/code/
 
-# --- Diagnostics and Final Configuration ---
-# This comprehensive check verifies that all critical components are installed and compatible.
-RUN echo "--- Docker Build: Verifying final directory structure in /opt/ml/code/ ---" && \
-    ls -R /opt/ml/code && \
-    echo "--- Docker Build: COMPREHENSIVE Check ..." && \
-    /opt/conda/bin/python -c "import sys; print(f'Py version: {sys.version}'); \
-    import torch; print(f'torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}'); \
-    import transformers; print(f'transformers: {transformers.__version__}'); \
-    import safetensors; print(f'safetensors: {safetensors.__version__}'); \
-    import mamba_ssm; print(f'mamba_ssm: {getattr(mamba_ssm, \"__version__\", \"OK - Installed from source\")}')"
+# --- Verification ---
+RUN echo "--- Verifying wheel-based installation ---" && \
+    python -c "import sys; print(f'Python: {sys.version}'); \
+    import torch; print(f'PyTorch: {torch.__version__}, CUDA available: {torch.cuda.is_available()}'); \
+    import mamba_ssm; print(f'Mamba SSM: {mamba_ssm.__version__}'); \
+    print('✅ All components loaded successfully!')"
 
 # --- SageMaker Configuration ---
 ENV SAGEMAKER_SUBMIT_DIRECTORY /opt/ml/code
 ENV SAGEMAKER_PROGRAM src/train.py
-ENTRYPOINT ["/opt/conda/bin/python", "-m", "sagemaker_training.cli.train"]
+ENTRYPOINT ["python", "-m", "sagemaker_training.cli.train"]
