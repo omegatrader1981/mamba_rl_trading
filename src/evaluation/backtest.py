@@ -1,5 +1,5 @@
-# src/evaluation/backtest.py
-# <<< NEW MODULE: Runs the backtest simulation and returns raw results. >>>
+# <<< REFACTORED: Runs the backtest simulation and returns raw results. >>>
+# <<< DEFINITIVE FIX: Correctly initializes state after env.reset(), fixing the 'last_info' AttributeError. >>>
 
 import pandas as pd
 import numpy as np
@@ -42,11 +42,16 @@ class BacktestRunner:
         timestamps, portfolio_values, positions_held = [], [], []
         trades, current_trade = [], {}
         
-        # Initialize records
-        initial_info = self.env.get_attr('last_info')[0]
-        timestamps.append(initial_info.get('timestamp', pd.NaT))
-        portfolio_values.append(initial_info.get('portfolio_value', self.initial_balance))
-        positions_held.append(initial_info.get('position', 0))
+        # <<< THE FIX IS HERE: Directly query the ground-truth state after reset. >>>
+        # We no longer rely on a fragile, non-existent 'last_info' attribute.
+        initial_step = self.env.get_attr('current_step')[0]
+        initial_timestamp = self.env.get_attr('df')[0].index[initial_step]
+        initial_portfolio_value = self.env.get_attr('account')[0].portfolio_value(self.env.get_attr('df')[0]['close'].iloc[initial_step])
+        initial_position = self.env.get_attr('account')[0].position
+
+        timestamps.append(initial_timestamp)
+        portfolio_values.append(initial_portfolio_value)
+        positions_held.append(initial_position)
 
         pbar = tqdm(total=len(self.env.get_attr('df')[0]) - self.env.get_attr('current_step')[0], desc="Backtest Progress")
 
@@ -58,12 +63,10 @@ class BacktestRunner:
             terminated, truncated = terminated_batch[0], truncated_batch[0]
             info = infos[0]
 
-            # Log data for this step
             timestamps.append(info.get('timestamp', pd.NaT))
             portfolio_values.append(info.get('portfolio_value', portfolio_values[-1]))
             positions_held.append(info.get('position', prev_position))
             
-            # Detailed trade logging
             current_trade = self._log_trade_transitions(info, prev_position, action[0], current_trade, trades)
 
             pbar.update(1)
@@ -72,20 +75,22 @@ class BacktestRunner:
         equity_df = pd.DataFrame({'portfolio_value': portfolio_values}, index=pd.to_datetime(timestamps, utc=True))
         positions_df = pd.DataFrame({'position': positions_held}, index=pd.to_datetime(timestamps, utc=True))
 
+        # Use the final info dict from the last step
+        final_info = self.env.get_attr('last_info')[0] if hasattr(self.env.envs[0], 'last_info') else info
+
         return BacktestResult(
             trades=trades,
             equity_curve=equity_df,
             positions=positions_df,
             initial_balance=self.initial_balance,
             final_balance=portfolio_values[-1],
-            metrics=info # The last info dict contains final prop firm stats
+            metrics=final_info
         )
 
     def _log_trade_transitions(self, info: Dict, prev_pos: int, action: int, current_trade: Dict, trades: List) -> Dict:
         """Manages the lifecycle of a trade dictionary."""
         current_pos = info.get('position', prev_pos)
         
-        # Position was closed (either to flat or flipped)
         if current_trade and prev_pos != 0 and current_pos != prev_pos:
             current_trade.update({
                 'exit_ts': info.get('timestamp'),
@@ -97,7 +102,6 @@ class BacktestRunner:
             log.info(f"Trade CLOSED. Type: {current_trade.get('direction')}, PnL: {current_trade.get('pnl', 0.0):.2f}")
             current_trade = {}
 
-        # New position was opened (either from flat or a flip)
         if prev_pos != current_pos and current_pos != 0:
             current_trade = {
                 'entry_ts': info.get('timestamp'),
