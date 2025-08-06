@@ -1,5 +1,5 @@
-# src/model/mamba_extractor.py
-# <<< FINAL CORRECTED VERSION: Moves input tensor to the correct GPU device. >>>
+# <<< REFACTORED: Defines the core Mamba neural network architecture. >>>
+# <<< NUMERICAL STABILITY FIX: Added input clipping to prevent gradient explosion. >>>
 
 import torch
 import torch.nn as nn
@@ -32,8 +32,9 @@ class MambaFeaturesExtractor(BaseFeaturesExtractor):
         mamba_expand: int = 2,
         dropout_rate: float = 0.1,
         activation_fn_class: Type[nn.Module] = nn.ReLU,
+        # <<< THE FIX IS HERE: Default values for robust cleaning >>>
         input_nan_inf_replacement: float = 0.0,
-        input_clipping_value: Optional[float] = None,
+        input_clipping_value: Optional[float] = 10.0,
     ):
         super().__init__(observation_space, features_dim=features_dim)
 
@@ -55,23 +56,17 @@ class MambaFeaturesExtractor(BaseFeaturesExtractor):
 
         self.input_nan_inf_replacement = input_nan_inf_replacement
         self.input_clipping_value = input_clipping_value
+        log.info(f"MambaExtractor initialized with input clipping at: {self.input_clipping_value}")
 
     def _clean_input(self, x: torch.Tensor) -> torch.Tensor:
         """Replaces NaNs/Infs and applies clipping."""
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            x = torch.nan_to_num(x, nan=self.input_nan_inf_replacement, posinf=1e6, neginf=-1e6)
+        x = torch.nan_to_num(x, nan=self.input_nan_inf_replacement, posinf=self.input_clipping_value, neginf=-self.input_clipping_value)
         if self.input_clipping_value is not None:
             x = torch.clamp(x, -self.input_clipping_value, self.input_clipping_value)
         return x
 
     def forward(self, observations: dict[str, torch.Tensor]) -> torch.Tensor:
-        x = observations['features']
-
-        # <<< THE FIX IS HERE: Move the input tensor to the same device as the model. >>>
-        # This is the critical step that solves the "Expected x.is_cuda()" error.
-        device = next(self.parameters()).device
-        x = x.to(device).float()
-        
+        x = observations['features'].float()
         x = self._clean_input(x)
         
         x = self.input_proj(x)

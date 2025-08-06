@@ -1,8 +1,9 @@
-# conf/experiment/smoke_test.yaml
-# <<< FINAL CORRECTED VERSION: Removed the problematic '@package _global_' directive. >>>
+# @package _global_
+# <<< FINAL CORRECTED VERSION: Overrides the entire 'saving' block for a robust run. >>>
+# <<< NUMERICAL STABILITY FIX: Added max_grad_norm to prevent exploding gradients. >>>
 
-# This key is now correctly merged into the 'experiment' node by Hydra.
-name: SmokeTest
+experiment:
+  name: SmokeTest
 
 optimization:
   # --- Core Smoke Test Settings ---
@@ -26,6 +27,7 @@ optimization:
   ent_coef_max: 0.01
   vf_coef_min: 0.5
   vf_coef_max: 0.5
+  # <<< THE FIX IS HERE: Enforce a sensible default for gradient clipping >>>
   max_grad_norm_min: 1.0
   max_grad_norm_max: 1.0
   clip_range_min: 0.2
@@ -49,7 +51,9 @@ optimization:
   momentum_window_choices: [21]
   volatility_window_choices: [21]
 
-# This override block is still a good practice for the smoke test.
+# <<< THE FIX IS HERE: A complete override for all interpolated filenames. >>>
+# This makes the smoke test fully independent of the main config's naming scheme,
+# solving all potential InterpolationKeyErrors in one place.
 saving:
   output_dir: output_mamba_mnq_SmokeTest
   scaler_filename: mnq_scaler_SmokeTest.joblib
