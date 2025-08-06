@@ -1,5 +1,5 @@
 # <<< REFACTORED: Lean orchestrator for the trading environment >>>
-# <<< DEFINITIVE FINAL FIX 2.0: Implements a regime-aware, three-lock system to solve all session and data boundary loops. >>>
+# <<< FINAL DIAGNOSTIC VERSION: Adds explicit logging to the termination logic to unmask the episode lifecycle. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -22,12 +22,11 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Regime-Aware Final Fix Version)...")
+        log.info("Initializing FuturesTradingEnv (Final Diagnostic Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
         
-        # <<< THE FIX IS HERE: Make the environment aware of regime boundaries >>>
         if 'source_regime' in self.df.columns:
             self.is_regime_boundary = (self.df['source_regime'] != self.df['source_regime'].shift(1)).fillna(False)
             log.info("Regime boundaries detected and will be enforced.")
@@ -139,10 +138,7 @@ class FuturesTradingEnv(gym.Env):
         slippage_in_points = slippage_in_ticks * self.tick_size
         return base_price + slippage_in_points if order_side == 1 else base_price - slippage_in_points
 
-    # <<< THE FIX IS HERE: Enhanced with regime boundary check >>>
     def _is_trading_forbidden(self) -> bool:
-        """Checks if entering a new trade is forbidden at the current timestamp."""
-        # Prohibit entry on the first bar of a new, disjointed regime segment
         if self.is_regime_boundary.iloc[self.current_step]:
             return True
         
@@ -229,8 +225,16 @@ class FuturesTradingEnv(gym.Env):
         )
         
         self.current_step += 1
+        
+        # <<< THE FIX IS HERE: Explicitly log the reason for episode termination >>>
         terminated = terminated_by_penalty or (self.current_step >= len(self.df) - 1)
-        truncated = self.current_step >= len(self.df) - 1
+        truncated = self.current_step >= len(self.df) - 1 # Truncation is a specific type of termination
+
+        if terminated and not truncated:
+            reason = "max_consecutive_holds_penalty" if terminated_by_penalty else "unknown_termination"
+            log.warning(f"EPISODE TERMINATED at step {self.current_step} on {self.df.index[self.current_step-1]}. Reason: {reason}.")
+        elif truncated:
+            log.warning(f"EPISODE TRUNCATED at step {self.current_step} on {self.df.index[self.current_step-1]} (end of data).")
         
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
@@ -243,16 +247,14 @@ class FuturesTradingEnv(gym.Env):
         self._info_realized_pnl_on_close = pnl
         log.info(f"Forced close executed at current price: {execution_price:.2f}, PnL: {pnl:.2f}")
 
-    # <<< THE FIX IS HERE: Enhanced with regime boundary check >>>
     def _handle_forced_exits(self) -> bool:
         action_forced = False
         
-        # Check for regime boundary first
         if self.account.position != 0 and self.is_regime_boundary.iloc[self.current_step]:
             log.info(f"REGIME BOUNDARY EXIT: Forcing close of position at {self.df.index[self.current_step]}.")
             self._force_close_position_now()
             action_forced = True
-            return action_forced # Return immediately to prevent double-logging
+            return action_forced
 
         ts = self.df.index[self.current_step]
         if self.account.position != 0 and ts.weekday() == 4 and ts.hour >= 20:
