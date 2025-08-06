@@ -1,5 +1,5 @@
-# src/environment/trading_env.py
 # <<< REFACTORED: Lean orchestrator for the trading environment >>>
+# <<< CRITICAL FIX APPLIED: Prevents infinite loop on forced exits. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -180,11 +180,22 @@ class FuturesTradingEnv(gym.Env):
     def step(self, action: int) -> Tuple[Dict[str, np.ndarray], float, bool, bool, dict]:
         portfolio_value_before = self.account.portfolio_value(self._get_current_price())
         
-        self._handle_forced_exits()
-        self._execute_trade(action)
+        # <<< THE FIX IS HERE >>>
+        forced_exit_occurred = self._handle_forced_exits()
+
+        # If an exit was forced, ignore the agent's action for this step.
+        if not forced_exit_occurred:
+            self._execute_trade(action)
+        else:
+            # Ensure we correctly log that no trade occurred from the agent's perspective
+            self._trade_occurred_this_step = False
+            self._is_invalid_action = False
+            # If the agent wanted to do anything but hold, we effectively force a hold.
+            if action != self.ACTION_HOLD:
+                log.debug("Agent action overridden by forced exit.")
 
         if self.account.position != 0: self.account.steps_in_trade += 1
-        if action == self.ACTION_HOLD: self._consecutive_holds += 1
+        if action == self.ACTION_HOLD and not forced_exit_occurred: self._consecutive_holds += 1
         else: self._consecutive_holds = 0
 
         portfolio_value_after = self.account.portfolio_value(self._get_current_price())
@@ -202,16 +213,23 @@ class FuturesTradingEnv(gym.Env):
         
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
-    def _handle_forced_exits(self):
-        # End of week exit
+    def _handle_forced_exits(self) -> bool:
+        """
+        Handles forced exits and returns True if an exit was forced, False otherwise.
+        """
+        action_forced = False
         ts = self.df.index[self.current_step]
+        # End of week exit
         if self.account.position != 0 and ts.weekday() == 4 and ts.hour >= 20:
             log.info(f"END-OF-WEEK EXIT: Forcing close of position.")
             self._execute_trade(self.ACTION_EXIT_POSITION)
+            action_forced = True
         # End of data exit
         if self.account.position != 0 and (self.current_step == len(self.df) - 1):
             log.info(f"END-OF-DATA: Forcing close of position on final bar.")
             self._execute_trade(self.ACTION_EXIT_POSITION)
+            action_forced = True
+        return action_forced
 
     def close(self):
         log.info("Closing FuturesTradingEnv.")
