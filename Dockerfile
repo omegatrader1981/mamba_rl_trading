@@ -1,8 +1,8 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
 # ULTRA-HARDENED WHEEL-BASED VERSION: Maximum error prevention for mamba-ssm installation
 
-# Use Ubuntu 20.04 base with Python 3.10 (most stable combination)
-FROM ubuntu:20.04
+# Use Ubuntu 20.04 base with Python 3.10 (most stable combination) - ECR Public to avoid rate limits
+FROM public.ecr.aws/ubuntu/ubuntu:20.04
 
 # --- Critical Environment Setup (prevents many common errors) ---
 ENV PYTHONUNBUFFERED=1
@@ -50,7 +50,7 @@ RUN apt-get purge -y python3-pip || true && \
 RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
     ln -sf /usr/bin/python3.10 /usr/bin/python
 
-# --- CUDA 11.8 Installation (modern CUDA for PyTorch 2.3.1) ---
+# --- CUDA 11.8 Installation (modern CUDA for PyTorch 2.0.1) ---
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb \
     && dpkg -i cuda-keyring_1.0-1_all.deb \
     && apt-get update \
