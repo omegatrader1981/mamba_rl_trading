@@ -81,8 +81,8 @@ RUN pip install --no-cache-dir \
     torchaudio==2.0.2+cu118 \
     --extra-index-url https://download.pytorch.org/whl/cu118
 
-# Verify PyTorch installation before proceeding
-RUN python3 -c "import torch; assert torch.cuda.is_available(), 'CUDA not available'; print(f'✅ PyTorch {torch.__version__} with CUDA {torch.version.cuda}')"
+# Verify PyTorch installation before proceeding (CUDA won't be available during build)
+RUN python3 -c "import torch; print(f'✅ PyTorch {torch.__version__} with CUDA support: {torch.version.cuda}')"
 
 # --- Install Other Dependencies (copy requirements for better caching) ---
 COPY requirements.txt /opt/ml/code/requirements.txt
@@ -112,7 +112,7 @@ RUN echo "=== SYSTEM VERIFICATION ===" && \
     nvcc --version && \
     echo "=== PACKAGE VERIFICATION ===" && \
     python3 -c "import sys; print('Python:', sys.version)" && \
-    python3 -c "import torch; print('PyTorch:', torch.__version__, 'CUDA:', torch.cuda.is_available())" && \
+    python3 -c "import torch; print('PyTorch:', torch.__version__, 'CUDA Support:', torch.version.cuda)" && \
     python3 -c "import torchvision; print('TorchVision:', torchvision.__version__)" && \
     python3 -c "import causal_conv1d; print('causal-conv1d imported successfully')" && \
     python3 -c "import mamba_ssm; print('mamba-ssm:', mamba_ssm.__version__)" && \
