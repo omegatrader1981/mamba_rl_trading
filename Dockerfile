@@ -50,7 +50,7 @@ RUN apt-get purge -y python3-pip || true && \
 RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
     ln -sf /usr/bin/python3.10 /usr/bin/python
 
-# --- CUDA 11.8 Installation (prevents CUDA version mismatches) ---
+# --- CUDA 11.8 Installation (modern CUDA for PyTorch 2.3.1) ---
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb \
     && dpkg -i cuda-keyring_1.0-1_all.deb \
     && apt-get update \
@@ -73,12 +73,12 @@ RUN pip install --no-cache-dir \
     sagemaker-training==4.5.0 \
     packaging==23.1
 
-# --- ULTRA-SAFE PyTorch Installation (prevents version conflicts) ---
-# Install exact PyTorch 2.0.1 with CUDA 11.8 support
+# --- MODERN PyTorch Installation (2.3.1 + CUDA 11.8) ---
+# Install latest stable PyTorch with CUDA 11.8 support
 RUN pip install --no-cache-dir \
-    torch==2.0.1+cu118 \
-    torchvision==0.15.2+cu118 \
-    torchaudio==2.0.2+cu118 \
+    torch==2.3.1+cu118 \
+    torchvision==0.18.1+cu118 \
+    torchaudio==2.3.1+cu118 \
     --extra-index-url https://download.pytorch.org/whl/cu118
 
 # Verify PyTorch installation before proceeding (CUDA won't be available during build)
@@ -88,19 +88,9 @@ RUN python3 -c "import torch; print(f'✅ PyTorch {torch.__version__} with CUDA 
 COPY requirements.txt /opt/ml/code/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- CRITICAL MAMBA-SSM INSTALLATION (addresses all common failure points) ---
-# Step 1: Install causal-conv1d dependency first (prevents missing dependency errors)
-RUN pip install causal-conv1d==1.1.0 --no-build-isolation --verbose
-
-# Step 2: Install triton if not already present (prevents Windows-style errors on Linux)
-RUN pip install triton==2.0.0 --no-build-isolation || echo "Triton installation skipped (may not be needed)"
-
-# Step 3: Install mamba-ssm with maximum compatibility flags
-RUN pip install mamba-ssm==2.0.4 \
-    --no-build-isolation \
-    --no-cache-dir \
-    --verbose \
-    --force-reinstall
+# --- SIMPLIFIED MAMBA-SSM INSTALLATION (let it handle its own dependencies) ---
+# Install latest mamba-ssm and let it manage causal-conv1d compatibility
+RUN pip install mamba-ssm==2.2.5 --no-build-isolation --no-cache-dir --verbose
 
 # --- Copy Project Code ---
 COPY . /opt/ml/code/
