@@ -25,10 +25,6 @@ data:
   sagemaker_channel_name: training
   use_regime_splicing: true
 
-  # <<< STRATEGIC IMPROVEMENT APPLIED >>>
-  # The regime definitions have been restructured into a list of [start, end] pairs.
-  # This format is safer to parse, prevents silent errors from malformed lists,
-  # and allows for defining non-contiguous regimes in the future (e.g., [['date1', 'date2'], ['date3', 'date4']]).
   regime_definitions:
     train_High_Vol_Crash: [['2020-02-15', '2020-04-30']]
     train_Bull_Market:    [['2020-06-01', '2020-09-30']]
@@ -65,7 +61,6 @@ environment:
   max_slippage_points: 0.25
   reward_type: "profit" 
   hold_penalty_scale: 0.0
-  # <<< THE FIX IS HERE: Added the key to the default schema >>>
   activity_reward_scale: 0.0
   max_consecutive_holds_limit: 900
   min_lookback_hpo: 200
@@ -80,8 +75,51 @@ model:
   mamba_d_conv_default: 2
   mamba_expand_default: 2
 
+# --- Optimization (Defaults) ---
 # This tells Hydra to expect an 'optimization' block from one of the experiment files.
-optimization: {}
+# We add all keys here to define the schema.
+optimization:
+  n_trials: 1
+  timeout_seconds: null
+  metric: 'sharpe'
+  direction: 'maximize'
+  max_eval_steps: 2000
+  pruning: {} # Placeholder for the pruning group
+  # <<< THE FIX IS HERE: Added the missing key to the schema >>>
+  n_jobs: 1
+  trial_timesteps: 1000
+  # Add other potential HPO keys with default values
+  lr_min: 1e-6
+  lr_max: 1e-5
+  ppo_n_steps_choices_hpo: [256, 512]
+  batch_size_choices: [32, 64]
+  gamma_min: 0.99
+  gamma_max: 0.999
+  gae_lambda_min: 0.9
+  gae_lambda_max: 0.98
+  ent_coef_min: 0.0
+  ent_coef_max: 0.01
+  vf_coef_min: 0.5
+  vf_coef_max: 0.6
+  max_grad_norm_min: 0.5
+  max_grad_norm_max: 5.0
+  clip_range_min: 0.1
+  clip_range_max: 0.3
+  weight_decay_min: 0.0
+  weight_decay_max: 1e-3
+  activity_reward_scale_min: 0.0
+  activity_reward_scale_max: 0.1
+  mamba_layers_min: 1
+  mamba_layers_max: 4
+  mamba_d_model_choices: [64, 128]
+  mamba_d_state_choices: [16, 32]
+  features_dim_choices: [128, 256]
+  dropout_min: 0.0
+  dropout_max: 0.2
+  hurst_window_choices: [50, 100]
+  momentum_window_choices: [10, 21]
+  volatility_window_choices: [10, 21]
+
 
 # --- Training & Evaluation (Final Run Settings) ---
 training:
