@@ -1,5 +1,4 @@
-# src/optimize/model_builder.py
-# FINAL CORRECTED VERSION: Explicitly moves the entire policy to the correct device.
+# <<< UPDATED: Now uses the robust get_device utility and CORRECT config keys. >>>
 
 import torch.nn as nn
 from stable_baselines3 import PPO
@@ -7,7 +6,6 @@ from stable_baselines3.common.vec_env import VecEnv
 import optuna
 from omegaconf import DictConfig
 
-# Import from our refactored project structure
 from src.model import MambaFeaturesExtractor, MambaActorCriticPolicy
 from src.torch_utils import get_device
 
@@ -28,7 +26,12 @@ def create_ppo_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> PPO:
     weight_decay = trial.suggest_float("weight_decay", cfg.optimization.weight_decay_min, cfg.optimization.weight_decay_max)
 
     # --- Sample Mamba Architecture Hyperparameters ---
-    num_mamba_layers = trial.suggest_int("num_mamba_layers", cfg.optimization.mamba_layers_min, cfg.optimization.mamba_layers_max)
+    # <<< THE FIX IS HERE: Accessing the correct config keys for the HPO range >>>
+    num_mamba_layers = trial.suggest_int(
+        "num_mamba_layers", 
+        cfg.optimization.num_mamba_layers_min, 
+        cfg.optimization.num_mamba_layers_max
+    )
     mamba_d_model = trial.suggest_categorical("mamba_d_model", cfg.optimization.mamba_d_model_choices)
     mamba_d_state = trial.suggest_categorical("mamba_d_state", cfg.optimization.mamba_d_state_choices)
     features_dim = trial.suggest_categorical("features_dim", cfg.optimization.features_dim_choices)
@@ -59,9 +62,4 @@ def create_ppo_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> PPO:
     }
 
     model = PPO(MambaActorCriticPolicy, env, policy_kwargs=policy_kwargs, **ppo_params)
-    
-    # <<< THE FIX IS HERE: Explicitly ensure the entire policy and all its sub-modules
-    # (including the Mamba extractor) are on the correct device. >>>
-    model.policy = model.policy.to(device)
-    
     return model

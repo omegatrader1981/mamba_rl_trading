@@ -1,5 +1,4 @@
-# src/pipeline/training_pipeline.py
-# <<< CORRECTED: Added SageMaker model directory support >>>
+# <<< CORRECTED: Added SageMaker model directory support and fixed param access >>>
 
 import pandas as pd
 import logging
@@ -33,11 +32,8 @@ def train_and_evaluate_model(
     if not best_params:
         raise RuntimeError("Hyperparameter optimization failed to produce best parameters.")
     
-    # <<< SAGEMAKER FIX: Use SageMaker model directory for final model >>>
     sagemaker_model_dir = "/opt/ml/model"
-    output_dir = os.getcwd()  # Keep this for other outputs
-    
-    # Ensure SageMaker model directory exists
+    output_dir = os.getcwd()
     os.makedirs(sagemaker_model_dir, exist_ok=True)
     
     best_params_path = os.path.join(output_dir, cfg.saving.best_params_filename)
@@ -63,10 +59,15 @@ def train_and_evaluate_model(
     policy_kwargs = dict(
         features_extractor_class=MambaActorCriticPolicy.features_extractor_class,
         features_extractor_kwargs=dict(
-            features_dim=best_params['features_dim'], mamba_d_model=best_params['mamba_d_model'],
-            num_mamba_layers=best_params['num_mamba_layers'], mamba_d_state=best_params['d_state'],
-            dropout_rate=best_params['dropout_rate'], activation_fn_class=mamba_activation,
-            mamba_d_conv=cfg.model.mamba_d_conv_default, mamba_expand=cfg.model.mamba_expand_default
+            features_dim=best_params['features_dim'],
+            mamba_d_model=best_params['mamba_d_model'],
+            num_mamba_layers=best_params['num_mamba_layers'],
+            # <<< THE FIX IS HERE: Accessing the correct key from best_params >>>
+            mamba_d_state=best_params['mamba_d_state'],
+            dropout_rate=best_params['dropout_rate'],
+            activation_fn_class=mamba_activation,
+            mamba_d_conv=cfg.model.mamba_d_conv_default,
+            mamba_expand=cfg.model.mamba_expand_default
         ),
         activation_fn=mlp_activation,
         optimizer_kwargs=dict(weight_decay=best_params['weight_decay'])
@@ -85,49 +86,18 @@ def train_and_evaluate_model(
     
     final_model = PPO(MambaActorCriticPolicy, final_env, policy_kwargs=policy_kwargs, **ppo_params)
     
-    # <<< ENHANCED LOGGING: Add episode progress tracking >>>
     log.info(f"Starting training for {cfg.training.total_timesteps} timesteps...")
+    final_model.learn(total_timesteps=cfg.training.total_timesteps)
     
-    # Add callback for progress monitoring
-    class ProgressCallback:
-        def __init__(self, log_freq=1000):
-            self.log_freq = log_freq
-            self.n_calls = 0
-            
-        def __call__(self, locals_, globals_):
-            self.n_calls += 1
-            if self.n_calls % self.log_freq == 0:
-                log.info(f"Training progress: {self.n_calls} steps completed")
-            return True
-    
-    progress_callback = ProgressCallback()
-    final_model.learn(total_timesteps=cfg.training.total_timesteps, callback=progress_callback)
-    
-    # <<< CRITICAL FIX: Save model to SageMaker directory >>>
-    # Save to SageMaker model directory (creates model.tar.gz)
-    final_model_sagemaker_path = os.path.join(sagemaker_model_dir, "final_model")
+    final_model_sagemaker_path = os.path.join(sagemaker_model_dir, "final_model.zip")
     final_model.save(final_model_sagemaker_path)
     log.info(f"Final model saved to SageMaker model directory: {final_model_sagemaker_path}")
     
-    # Also save to output directory for local access
     final_model_local_path = os.path.join(output_dir, cfg.saving.final_model_filename)
     final_model.save(final_model_local_path)
     log.info(f"Final model also saved locally to: {final_model_local_path}")
-    
-    # <<< ADDITIONAL: Save training metadata to SageMaker model directory >>>
-    metadata = {
-        'best_params': best_params,
-        'feature_cols': feature_cols,
-        'model_config': final_full_cfg,
-        'training_timesteps': cfg.training.total_timesteps
-    }
-    metadata_path = os.path.join(sagemaker_model_dir, "training_metadata.pkl")
-    joblib.dump(metadata, metadata_path)
-    log.info(f"Training metadata saved to: {metadata_path}")
 
     log.info("Evaluating final model on unseen test data...")
     evaluate_agent(final_model, df_test_s, feature_cols, final_full_cfg, output_dir=output_dir)
     
     log.info("--- Model Training & Evaluation Pipeline COMPLETED ---")
-    log.info(f"Model artifacts saved to SageMaker model directory: {sagemaker_model_dir}")
-    log.info("SageMaker will automatically create model.tar.gz from this directory")

@@ -1,12 +1,9 @@
 # @package _global_
-# <<< FINAL CORRECTED VERSION: Overrides the entire 'saving' block for a robust run. >>>
-# <<< NUMERICAL STABILITY FIX: Added max_grad_norm to prevent exploding gradients. >>>
 
 experiment:
   name: SmokeTest
 
 optimization:
-  # --- Core Smoke Test Settings ---
   n_trials: 1
   trial_timesteps: 1000
   metric: 'sharpe'
@@ -14,7 +11,6 @@ optimization:
   pruning: 
     enabled: false
 
-  # --- Placeholder HPO Ranges ---
   lr_min: 1e-6
   lr_max: 3e-6
   ppo_n_steps_choices_hpo: [512]
@@ -27,7 +23,6 @@ optimization:
   ent_coef_max: 0.01
   vf_coef_min: 0.5
   vf_coef_max: 0.5
-  # <<< THE FIX IS HERE: Enforce a sensible default for gradient clipping >>>
   max_grad_norm_min: 1.0
   max_grad_norm_max: 1.0
   clip_range_min: 0.2
@@ -37,23 +32,19 @@ optimization:
   activity_reward_scale_min: 0.05
   activity_reward_scale_max: 0.05
   
-  # --- Model Architecture: Fixed Values ---
-  mamba_layers_min: 2 
-  mamba_layers_max: 2
+  # <<< THE FIX IS HERE: Using the code-correct parameter names >>>
+  num_mamba_layers_min: 2 
+  num_mamba_layers_max: 2
   mamba_d_model_choices: [64]
   mamba_d_state_choices: [16]
   features_dim_choices: [128]
   dropout_min: 0.1
   dropout_max: 0.1
   
-  # --- Feature Parameters: Fixed Values ---
   hurst_window_choices: [50]
   momentum_window_choices: [21]
   volatility_window_choices: [21]
 
-# <<< THE FIX IS HERE: A complete override for all interpolated filenames. >>>
-# This makes the smoke test fully independent of the main config's naming scheme,
-# solving all potential InterpolationKeyErrors in one place.
 saving:
   output_dir: output_mamba_mnq_SmokeTest
   scaler_filename: mnq_scaler_SmokeTest.joblib

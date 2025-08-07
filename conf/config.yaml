@@ -1,17 +1,10 @@
 # @package _global_
 
 # --- Defaults List ---
-# This tells Hydra to compose our final config by picking one file from each group.
-# The last item in the list wins in case of conflicts.
 defaults:
   - _self_
   - instrument: mnq
   - experiment: refine
-  # Placeholders for future phases
-  # - model: ppo
-  # - reward: simple_pnl
-  
-  # This is a technical override needed for Hydra's logging to work with this structure
   - override hydra/job_logging: default
 
 # <<< Global Debug Flags >>>
@@ -24,7 +17,6 @@ data:
   data_dir: "." 
   sagemaker_channel_name: training
   use_regime_splicing: true
-
   regime_definitions:
     train_High_Vol_Crash: [['2020-02-15', '2020-04-30']]
     train_Bull_Market:    [['2020-06-01', '2020-09-30']]
@@ -33,7 +25,6 @@ data:
     train_Low_Vol_Grind:  [['2021-10-01', '2021-12-31']]
     validation_set:       [['2023-01-01', '2023-06-30']]
     test_set:             [['2024-01-01', '2024-12-31']]
-  
   cleaning:
     min_allowable_price: 0.01
     outlier_rolling_window: 21 
@@ -65,6 +56,8 @@ environment:
   max_consecutive_holds_limit: 900
   min_lookback_hpo: 200
   max_lookback_hpo: 400
+  # <<< THE FIX IS HERE: Added the missing key to the schema >>>
+  lookback_window: 250
 
 # --- Model Configuration (Defaults) ---
 model:
@@ -76,19 +69,15 @@ model:
   mamba_expand_default: 2
 
 # --- Optimization (Defaults) ---
-# This tells Hydra to expect an 'optimization' block from one of the experiment files.
-# We add all keys here to define the schema.
 optimization:
   n_trials: 1
   timeout_seconds: null
   metric: 'sharpe'
   direction: 'maximize'
   max_eval_steps: 2000
-  pruning: {} # Placeholder for the pruning group
-  # <<< THE FIX IS HERE: Added the missing key to the schema >>>
+  pruning: {}
   n_jobs: 1
   trial_timesteps: 1000
-  # Add other potential HPO keys with default values
   lr_min: 1e-6
   lr_max: 1e-5
   ppo_n_steps_choices_hpo: [256, 512]
@@ -109,8 +98,9 @@ optimization:
   weight_decay_max: 1e-3
   activity_reward_scale_min: 0.0
   activity_reward_scale_max: 0.1
-  mamba_layers_min: 1
-  mamba_layers_max: 4
+  # <<< THE FIX IS HERE: Using the code-correct parameter names >>>
+  num_mamba_layers_min: 1
+  num_mamba_layers_max: 4
   mamba_d_model_choices: [64, 128]
   mamba_d_state_choices: [16, 32]
   features_dim_choices: [128, 256]
@@ -119,7 +109,6 @@ optimization:
   hurst_window_choices: [50, 100]
   momentum_window_choices: [10, 21]
   volatility_window_choices: [10, 21]
-
 
 # --- Training & Evaluation (Final Run Settings) ---
 training:
