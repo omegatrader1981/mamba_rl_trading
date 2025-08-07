@@ -73,12 +73,12 @@ RUN pip install --no-cache-dir \
     sagemaker-training==4.5.0 \
     packaging==23.1
 
-# --- MODERN PyTorch Installation (2.3.1 + CUDA 11.8) ---
-# Install latest stable PyTorch with CUDA 11.8 support
+# --- PROVEN PyTorch Installation (2.0.1 + CUDA 11.8) ---
+# Install community-tested PyTorch 2.0.1 with CUDA 11.8 support
 RUN pip install --no-cache-dir \
-    torch==2.3.1+cu118 \
-    torchvision==0.18.1+cu118 \
-    torchaudio==2.3.1+cu118 \
+    torch==2.0.1+cu118 \
+    torchvision==0.15.2+cu118 \
+    torchaudio==2.0.2+cu118 \
     --extra-index-url https://download.pytorch.org/whl/cu118
 
 # Verify PyTorch installation before proceeding (CUDA won't be available during build)
@@ -88,9 +88,9 @@ RUN python3 -c "import torch; print(f'✅ PyTorch {torch.__version__} with CUDA 
 COPY requirements.txt /opt/ml/code/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- SIMPLIFIED MAMBA-SSM INSTALLATION (let it handle its own dependencies) ---
-# Install latest mamba-ssm and let it manage causal-conv1d compatibility
-RUN pip install mamba-ssm==2.2.5 --no-build-isolation --no-cache-dir --verbose
+# --- PROVEN MAMBA-SSM INSTALLATION (community-tested combination) ---
+# Install mamba-ssm 2.0.4 which is known to work with PyTorch 2.0.1
+RUN pip install mamba-ssm==2.0.4 --no-build-isolation --no-cache-dir --verbose
 
 # --- Copy Project Code ---
 COPY . /opt/ml/code/

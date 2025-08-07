@@ -1,14 +1,14 @@
-# MODERN REQUIREMENTS: PyTorch 2.3.1 + CUDA 11.8 (2024/2025 versions)
+# PROVEN STABLE REQUIREMENTS: PyTorch 2.0.1 + CUDA 11.8 (community-tested)
 # PyTorch and mamba-ssm installed separately in Dockerfile
 
 # Core RL Framework
 stable-baselines3[extra]==2.0.0
 
-# Transformers Ecosystem (PyTorch 2.3.1 compatible - latest versions)
-transformers==4.42.4
-safetensors==0.4.3
-huggingface-hub==0.23.4
-tokenizers==0.19.1
+# Transformers Ecosystem (PyTorch 2.0.1 compatible - tested versions)
+transformers==4.30.2
+safetensors==0.3.1
+huggingface-hub==0.16.4
+tokenizers==0.13.3
 
 # RL Environment
 gymnasium==0.28.1
