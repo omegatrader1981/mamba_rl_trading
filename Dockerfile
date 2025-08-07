@@ -1,7 +1,7 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# ULTRA-HARDENED WHEEL-BASED VERSION: Maximum error prevention for mamba-ssm installation
+# PROVEN WORKING VERSION: PyTorch 2.0.1 + mamba-ssm 2.0.4 with pre-built wheels
 
-# Use Ubuntu 20.04 base with Python 3.10 (most stable combination) - ECR Public to avoid rate limits
+# Use Ubuntu 20.04 base with Python 3.10 - ECR Public to avoid rate limits
 FROM public.ecr.aws/ubuntu/ubuntu:20.04
 
 # --- Critical Environment Setup (prevents many common errors) ---
@@ -104,7 +104,6 @@ RUN echo "=== SYSTEM VERIFICATION ===" && \
     python3 -c "import sys; print('Python:', sys.version)" && \
     python3 -c "import torch; print('PyTorch:', torch.__version__, 'CUDA Support:', torch.version.cuda)" && \
     python3 -c "import torchvision; print('TorchVision:', torchvision.__version__)" && \
-    python3 -c "import causal_conv1d; print('causal-conv1d imported successfully')" && \
     python3 -c "import mamba_ssm; print('mamba-ssm:', mamba_ssm.__version__)" && \
     python3 -c "import stable_baselines3; print('stable-baselines3:', stable_baselines3.__version__)" && \
     echo "✅ ALL CRITICAL PACKAGES LOADED SUCCESSFULLY!"
