@@ -1,5 +1,5 @@
-# src/optimize/objective.py
 # <<< NEW MODULE: Defines the Objective class for a single Optuna trial. >>>
+# <<< CORRECTED: Ensures 'source_regime' column exists for HPO evaluation. >>>
 
 import pandas as pd
 import logging
@@ -30,7 +30,6 @@ class Objective:
         log.info(f"\n--- Starting Optuna Trial #{trial.number} ---")
         try:
             # 1. Sample feature parameters and create features for this trial
-            # Note: This is computationally intensive but required for joint optimization.
             feature_params = {
                 'hurst_window': trial.suggest_categorical('hurst_window', self.cfg.optimization.hurst_window_choices),
                 'momentum_window': trial.suggest_categorical('momentum_window', self.cfg.optimization.momentum_window_choices),
@@ -44,7 +43,10 @@ class Objective:
             df_featured, feature_cols = create_feature_set(combined_raw_df, OmegaConf.create({'features': trial_feature_cfg}), self.df_train_raw)
 
             df_train_featured = df_featured.loc[df_featured.index.isin(self.df_train_raw.index)]
-            df_val_featured = df_featured.loc[df_featured.index.isin(self.df_val_raw.index)]
+            df_val_featured = df_featured.loc[df_featured.index.isin(self.df_val_raw.index)].copy()
+
+            # <<< THE FIX IS HERE: Add the missing source_regime column >>>
+            df_val_featured['source_regime'] = 'validation_set'
 
             # 2. Setup environment with trial-specific lookback window
             lookback_window = trial.suggest_int('lookback_window', self.cfg.environment.min_lookback_hpo, self.cfg.environment.max_lookback_hpo)
@@ -62,7 +64,6 @@ class Objective:
             model.learn(total_timesteps=self.cfg.optimization.trial_timesteps)
 
             # 5. Evaluate the model using our refactored, robust evaluation function
-            # This is a major improvement, eliminating the redundant _evaluate_hpo function.
             eval_metrics = evaluate_agent(model, df_val_featured, feature_cols, trial_full_cfg, output_dir=None)
             metric_value = eval_metrics.get(self.cfg.optimization.metric, self.default_bad_value)
 

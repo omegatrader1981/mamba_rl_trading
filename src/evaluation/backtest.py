@@ -1,5 +1,5 @@
 # <<< REFACTORED: Runs the backtest simulation and returns raw results. >>>
-# <<< DEFINITIVE FIX: Correctly initializes state after env.reset(), fixing the 'last_info' AttributeError. >>>
+# <<< DEFINITIVE FIX: Correctly handles the 4-item return from a VecEnv.step() call. >>>
 
 import pandas as pd
 import numpy as np
@@ -42,8 +42,6 @@ class BacktestRunner:
         timestamps, portfolio_values, positions_held = [], [], []
         trades, current_trade = [], {}
         
-        # <<< THE FIX IS HERE: Directly query the ground-truth state after reset. >>>
-        # We no longer rely on a fragile, non-existent 'last_info' attribute.
         initial_step = self.env.get_attr('current_step')[0]
         initial_timestamp = self.env.get_attr('df')[0].index[initial_step]
         initial_portfolio_value = self.env.get_attr('account')[0].portfolio_value(self.env.get_attr('df')[0]['close'].iloc[initial_step])
@@ -59,10 +57,15 @@ class BacktestRunner:
         while not (terminated or truncated):
             prev_position = self.env.get_attr('account')[0].position
             action, _ = self.model.predict(obs, deterministic=self.deterministic)
-            obs, _, terminated_batch, truncated_batch, infos = self.env.step(action)
             
-            terminated, truncated = terminated_batch[0], truncated_batch[0]
+            # <<< THE FIX IS HERE: Use the 4-item return from VecEnv.step() >>>
+            obs, rewards, dones, infos = self.env.step(action)
+            
             info = infos[0]
+            # For a single env, dones[0] is True if the episode is over (terminated or truncated)
+            terminated = dones[0] 
+            # SB3 puts the truncation signal inside the info dict
+            truncated = info.get("TimeLimit.truncated", False) and terminated
 
             timestamps.append(info.get('timestamp', pd.NaT))
             portfolio_values.append(info.get('portfolio_value', portfolio_values[-1]))
