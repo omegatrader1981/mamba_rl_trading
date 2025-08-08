@@ -1,4 +1,4 @@
-# <<< CORRECTED: Added SageMaker model directory support & defensive parameter updates >>>
+# <<< CORRECTED: Uses the correct pattern for specifying the features_extractor_class. >>>
 
 import pandas as pd
 import logging
@@ -10,7 +10,8 @@ from typing import List
 
 from src.optimize import run_optimization
 from src.evaluation import evaluate_agent
-from src.model import MambaActorCriticPolicy
+# <<< THE FIX IS HERE (Part 1): Import both the Policy and the Extractor >>>
+from src.model import MambaActorCriticPolicy, MambaFeaturesExtractor
 from src.environment import FuturesTradingEnv
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -45,8 +46,6 @@ def train_and_evaluate_model(
     
     final_env_cfg = cfg.environment.copy()
     
-    # <<< THE ROBUSTNESS FIX IS HERE: Defensively update parameters >>>
-    # Use `best_params.get(key) or default` to avoid passing None
     lookback_window = best_params.get('lookback_window') or cfg.environment.max_lookback_hpo
     activity_reward_scale = best_params.get('activity_reward_scale') or cfg.environment.activity_reward_scale
     
@@ -64,7 +63,8 @@ def train_and_evaluate_model(
     mamba_activation = act_fn_map.get(cfg.model.mamba_activation_fn_name, nn.SiLU)
 
     policy_kwargs = dict(
-        features_extractor_class=MambaActorCriticPolicy.features_extractor_class,
+        # <<< THE FIX IS HERE (Part 2): Use the imported Extractor class directly >>>
+        features_extractor_class=MambaFeaturesExtractor,
         features_extractor_kwargs=dict(
             features_dim=best_params['features_dim'], mamba_d_model=best_params['mamba_d_model'],
             num_mamba_layers=best_params['num_mamba_layers'], mamba_d_state=best_params['mamba_d_state'],
