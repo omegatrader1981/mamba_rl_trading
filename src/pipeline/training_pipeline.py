@@ -1,4 +1,4 @@
-# <<< CORRECTED: Added SageMaker model directory support and fixed param access >>>
+# <<< CORRECTED: Added SageMaker model directory support & defensive parameter updates >>>
 
 import pandas as pd
 import logging
@@ -44,8 +44,15 @@ def train_and_evaluate_model(
     df_train_val_s = pd.concat([df_train_s, df_val_s]).sort_index()
     
     final_env_cfg = cfg.environment.copy()
-    OmegaConf.update(final_env_cfg, "lookback_window", best_params.get('lookback_window'))
-    OmegaConf.update(final_env_cfg, "activity_reward_scale", best_params.get('activity_reward_scale'))
+    
+    # <<< THE ROBUSTNESS FIX IS HERE: Defensively update parameters >>>
+    # Use `best_params.get(key) or default` to avoid passing None
+    lookback_window = best_params.get('lookback_window') or cfg.environment.max_lookback_hpo
+    activity_reward_scale = best_params.get('activity_reward_scale') or cfg.environment.activity_reward_scale
+    
+    OmegaConf.update(final_env_cfg, "lookback_window", lookback_window)
+    OmegaConf.update(final_env_cfg, "activity_reward_scale", activity_reward_scale)
+    
     final_full_cfg = cfg.copy()
     OmegaConf.update(final_full_cfg, "environment", final_env_cfg)
 
@@ -59,15 +66,10 @@ def train_and_evaluate_model(
     policy_kwargs = dict(
         features_extractor_class=MambaActorCriticPolicy.features_extractor_class,
         features_extractor_kwargs=dict(
-            features_dim=best_params['features_dim'],
-            mamba_d_model=best_params['mamba_d_model'],
-            num_mamba_layers=best_params['num_mamba_layers'],
-            # <<< THE FIX IS HERE: Accessing the correct key from best_params >>>
-            mamba_d_state=best_params['mamba_d_state'],
-            dropout_rate=best_params['dropout_rate'],
-            activation_fn_class=mamba_activation,
-            mamba_d_conv=cfg.model.mamba_d_conv_default,
-            mamba_expand=cfg.model.mamba_expand_default
+            features_dim=best_params['features_dim'], mamba_d_model=best_params['mamba_d_model'],
+            num_mamba_layers=best_params['num_mamba_layers'], mamba_d_state=best_params['mamba_d_state'],
+            dropout_rate=best_params['dropout_rate'], activation_fn_class=mamba_activation,
+            mamba_d_conv=cfg.model.mamba_d_conv_default, mamba_expand=cfg.model.mamba_expand_default
         ),
         activation_fn=mlp_activation,
         optimizer_kwargs=dict(weight_decay=best_params['weight_decay'])
