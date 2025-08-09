@@ -1,8 +1,11 @@
 # buildspec.yml for Project Phoenix
-# This file provides explicit, version-controlled instructions to AWS CodeBuild.
-# It includes the definitive fix for enabling persistent Docker layer caching.
+# DEFINITIVE VERSION: Includes explicit runtime-versions for stability.
+# TEMPORARY CHANGE: Appended '-v2' to the cache path to force invalidation.
 
 version: 0.2
+
+runtime-versions:
+  python: 3.10
 
 phases:
   pre_build:
@@ -18,12 +21,9 @@ phases:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image with cache support...
-      # The --cache-from flag explicitly tells Docker to use a potential cache
-      # from a previous 'latest' image. This makes the caching more robust.
       - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
       - docker build --cache-from $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest -t $IMAGE_REPO_NAME:$IMAGE_TAG .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-      # Also tag this new build as 'latest' to be the cache source for the next run
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
 
   post_build:
@@ -33,9 +33,8 @@ phases:
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
 
-# <<< THE CRITICAL FIX IS HERE >>>
-# This block explicitly tells CodeBuild to cache Docker's internal storage
-# directory between runs. This is the most reliable way to enable layer caching.
+# <<< THE TEMPORARY FIX IS HERE >>>
+# By changing this path, we force CodeBuild to create a new, clean cache.
 cache:
   paths:
-    - '/var/lib/docker/**/*'
+    - '/var/lib/docker-v2/**/*'
