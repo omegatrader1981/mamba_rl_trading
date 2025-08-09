@@ -1,5 +1,5 @@
 # <<< REFACTORED: Lean orchestrator for the trading environment >>>
-# <<< FINAL DIAGNOSTIC VERSION: Adds explicit logging to the termination logic to unmask the episode lifecycle. >>>
+# <<< DEFINITIVE FIX: Corrects the data leak at regime boundaries by using the previous bar's price for forced exits. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -22,7 +22,7 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Final Diagnostic Version)...")
+        log.info("Initializing FuturesTradingEnv (Regime-Boundary-Fixed Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
@@ -226,9 +226,8 @@ class FuturesTradingEnv(gym.Env):
         
         self.current_step += 1
         
-        # <<< THE FIX IS HERE: Explicitly log the reason for episode termination >>>
         terminated = terminated_by_penalty or (self.current_step >= len(self.df) - 1)
-        truncated = self.current_step >= len(self.df) - 1 # Truncation is a specific type of termination
+        truncated = self.current_step >= len(self.df) - 1
 
         if terminated and not truncated:
             reason = "max_consecutive_holds_penalty" if terminated_by_penalty else "unknown_termination"
@@ -238,33 +237,36 @@ class FuturesTradingEnv(gym.Env):
         
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
-    def _force_close_position_now(self):
+    def _force_close_position_now(self, execution_price: float):
         if self.account.position == 0:
             return
         
-        execution_price = self._get_current_price()
         pnl, _ = self.account.close_position(execution_price)
         self._info_realized_pnl_on_close = pnl
-        log.info(f"Forced close executed at current price: {execution_price:.2f}, PnL: {pnl:.2f}")
+        log.info(f"Forced close executed at price: {execution_price:.2f}, PnL: {pnl:.2f}")
 
     def _handle_forced_exits(self) -> bool:
         action_forced = False
         
+        # <<< THE FIX IS HERE: Corrects the regime boundary data leak >>>
         if self.account.position != 0 and self.is_regime_boundary.iloc[self.current_step]:
-            log.info(f"REGIME BOUNDARY EXIT: Forcing close of position at {self.df.index[self.current_step]}.")
-            self._force_close_position_now()
+            log.warning(f"REGIME BOUNDARY DETECTED at {self.df.index[self.current_step]}.")
+            # Use the price of the PREVIOUS bar to prevent lookahead bias.
+            exit_price = self.df['close'].iloc[self.current_step - 1]
+            log.warning(f"Forcing close of position at previous bar's close price: {exit_price}")
+            self._force_close_position_now(exit_price)
             action_forced = True
             return action_forced
 
         ts = self.df.index[self.current_step]
         if self.account.position != 0 and ts.weekday() == 4 and ts.hour >= 20:
             log.info(f"END-OF-WEEK EXIT: Forcing close of position.")
-            self._force_close_position_now()
+            self._force_close_position_now(self._get_current_price())
             action_forced = True
             
         if self.account.position != 0 and (self.current_step >= len(self.df) - 1):
             log.info(f"END-OF-DATA: Forcing close of position on final bar.")
-            self._force_close_position_now()
+            self._force_close_position_now(self._get_current_price())
             action_forced = True
             
         return action_forced

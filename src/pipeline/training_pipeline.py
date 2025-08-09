@@ -1,4 +1,4 @@
-# <<< CORRECTED: Uses the correct pattern for specifying the features_extractor_class. >>>
+# <<< DEFINITIVE FIX: Saves all artifacts to the correct SageMaker output directory. >>>
 
 import pandas as pd
 import logging
@@ -10,7 +10,6 @@ from typing import List
 
 from src.optimize import run_optimization
 from src.evaluation import evaluate_agent
-# <<< THE FIX IS HERE (Part 1): Import both the Policy and the Extractor >>>
 from src.model import MambaActorCriticPolicy, MambaFeaturesExtractor
 from src.environment import FuturesTradingEnv
 from stable_baselines3 import PPO
@@ -33,11 +32,15 @@ def train_and_evaluate_model(
     if not best_params:
         raise RuntimeError("Hyperparameter optimization failed to produce best parameters.")
     
+    # <<< THE FIX IS HERE: Define the correct, persistent output directories >>>
     sagemaker_model_dir = "/opt/ml/model"
-    output_dir = os.getcwd()
-    os.makedirs(sagemaker_model_dir, exist_ok=True)
+    # This is the directory that gets archived into output.tar.gz
+    sagemaker_output_dir = "/opt/ml/output/data" 
     
-    best_params_path = os.path.join(output_dir, cfg.saving.best_params_filename)
+    os.makedirs(sagemaker_model_dir, exist_ok=True)
+    os.makedirs(sagemaker_output_dir, exist_ok=True)
+    
+    best_params_path = os.path.join(sagemaker_output_dir, cfg.saving.best_params_filename)
     joblib.dump(best_params, best_params_path)
     log.info(f"Best HPO parameters saved to {best_params_path}")
 
@@ -63,7 +66,6 @@ def train_and_evaluate_model(
     mamba_activation = act_fn_map.get(cfg.model.mamba_activation_fn_name, nn.SiLU)
 
     policy_kwargs = dict(
-        # <<< THE FIX IS HERE (Part 2): Use the imported Extractor class directly >>>
         features_extractor_class=MambaFeaturesExtractor,
         features_extractor_kwargs=dict(
             features_dim=best_params['features_dim'], mamba_d_model=best_params['mamba_d_model'],
@@ -95,11 +97,13 @@ def train_and_evaluate_model(
     final_model.save(final_model_sagemaker_path)
     log.info(f"Final model saved to SageMaker model directory: {final_model_sagemaker_path}")
     
-    final_model_local_path = os.path.join(output_dir, cfg.saving.final_model_filename)
-    final_model.save(final_model_local_path)
-    log.info(f"Final model also saved locally to: {final_model_local_path}")
+    # Also save a copy to the output directory for easy access
+    final_model_output_path = os.path.join(sagemaker_output_dir, cfg.saving.final_model_filename)
+    final_model.save(final_model_output_path)
+    log.info(f"Final model also saved to output directory: {final_model_output_path}")
 
     log.info("Evaluating final model on unseen test data...")
-    evaluate_agent(final_model, df_test_s, feature_cols, final_full_cfg, output_dir=output_dir)
+    # <<< THE FIX IS HERE: Pass the correct output directory to the evaluation function >>>
+    evaluate_agent(final_model, df_test_s, feature_cols, final_full_cfg, output_dir=sagemaker_output_dir)
     
     log.info("--- Model Training & Evaluation Pipeline COMPLETED ---")
