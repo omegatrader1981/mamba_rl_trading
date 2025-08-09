@@ -1,6 +1,6 @@
 # buildspec.yml for Project Phoenix
 # DEFINITIVE VERSION: Includes explicit runtime-versions for stability.
-# TEMPORARY CHANGE: Appended '-v2' to the cache path to force invalidation.
+# The cache path is now reverted to its permanent state.
 
 version: 0.2
 
@@ -33,8 +33,8 @@ phases:
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
 
-# <<< THE TEMPORARY FIX IS HERE >>>
-# By changing this path, we force CodeBuild to create a new, clean cache.
+# <<< THE CHANGE IS REVERTED HERE >>>
+# The cache path is now back to the standard, permanent location.
 cache:
   paths:
-    - '/var/lib/docker-v2/**/*'
+    - '/var/lib/docker/**/*'
