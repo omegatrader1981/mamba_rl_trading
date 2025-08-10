@@ -31,7 +31,6 @@ data:
     outlier_median_dev_threshold: 0.20
 
 # --- Feature Engineering (Defaults) ---
-# <<< THE FIX IS HERE: Using the OPTIMIZED feature parameters >>>
 features:
   hurst_window: 151
   momentum_window: 48
@@ -55,6 +54,8 @@ environment:
   hold_penalty_scale: 0.0
   activity_reward_scale: 0.0
   max_consecutive_holds_limit: 900
+  # <<< THE FIX IS HERE: Add the stop-loss parameter to the schema >>>
+  stop_loss_ticks: 50 # 50 ticks = 12.5 points for MNQ. A sensible default.
   min_lookback_hpo: 200
   max_lookback_hpo: 400
 

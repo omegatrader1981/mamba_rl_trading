@@ -1,5 +1,4 @@
-# <<< REFACTORED: Lean orchestrator for the trading environment >>>
-# <<< DEFINITIVE FIX: Corrects the data leak at regime boundaries by using the previous bar's price for forced exits. >>>
+# <<< DEFINITIVE VERSION: Includes a hard-coded, configurable stop-loss for risk management. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -22,7 +21,7 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Regime-Boundary-Fixed Version)...")
+        log.info("Initializing FuturesTradingEnv (Hard Stop-Loss Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
@@ -70,6 +69,15 @@ class FuturesTradingEnv(gym.Env):
 
     def _configure_simulation_params(self):
         self.tick_size = float(self.env_cfg.tick_size)
+        # <<< THE FIX IS HERE (Part 1): Add stop-loss parameters >>>
+        self.stop_loss_ticks = int(self.env_cfg.get('stop_loss_ticks', 0)) # 0 means disabled
+        if self.stop_loss_ticks > 0:
+            self.stop_loss_points = self.stop_loss_ticks * self.tick_size
+            log.info(f"Hard stop-loss enabled at {self.stop_loss_ticks} ticks ({self.stop_loss_points} points).")
+        else:
+            self.stop_loss_points = 0
+            log.info("Hard stop-loss is disabled.")
+            
         self.add_bid_ask_spread = bool(self.env_cfg.get('add_bid_ask_spread', False))
         self.spread_ticks_min = int(self.env_cfg.get('spread_ticks_min', 1))
         self.spread_ticks_max = int(self.env_cfg.get('spread_ticks_max', 2))
@@ -198,19 +206,22 @@ class FuturesTradingEnv(gym.Env):
     def step(self, action: int) -> Tuple[Dict[str, np.ndarray], float, bool, bool, dict]:
         portfolio_value_before = self.account.portfolio_value(self._get_current_price())
         
+        # <<< THE FIX IS HERE (Part 2): Check for stop-loss before agent acts >>>
+        stop_loss_hit = self._check_for_stop_loss()
+        
         forced_exit_occurred = self._handle_forced_exits()
 
-        if not forced_exit_occurred:
+        if not forced_exit_occurred and not stop_loss_hit:
             self._execute_agent_trade(action)
         else:
             self._trade_occurred_this_step = True
             self._is_invalid_action = False
             if action != self.ACTION_HOLD:
-                log.debug("Agent action overridden by forced exit.")
+                log.debug("Agent action overridden by forced exit or stop-loss.")
 
         if self.account.position != 0: self.account.steps_in_trade += 1
         
-        if action == self.ACTION_HOLD and not forced_exit_occurred:
+        if action == self.ACTION_HOLD and not (forced_exit_occurred or stop_loss_hit):
             self._consecutive_holds += 1
         else:
             self._consecutive_holds = 0
@@ -228,14 +239,31 @@ class FuturesTradingEnv(gym.Env):
         
         terminated = terminated_by_penalty or (self.current_step >= len(self.df) - 1)
         truncated = self.current_step >= len(self.df) - 1
-
-        if terminated and not truncated:
-            reason = "max_consecutive_holds_penalty" if terminated_by_penalty else "unknown_termination"
-            log.warning(f"EPISODE TERMINATED at step {self.current_step} on {self.df.index[self.current_step-1]}. Reason: {reason}.")
-        elif truncated:
-            log.warning(f"EPISODE TRUNCATED at step {self.current_step} on {self.df.index[self.current_step-1]} (end of data).")
         
         return self._get_obs(), reward, terminated, truncated, self._get_info()
+
+    def _check_for_stop_loss(self) -> bool:
+        """Checks if the hard stop-loss has been hit and closes the position if so."""
+        if self.account.position == 0 or self.stop_loss_points == 0:
+            return False
+
+        # We need to check against the low/high of the bar for a more realistic stop
+        current_bar = self.df.iloc[self.current_step]
+        
+        unrealized_pnl = 0.0
+        if self.account.position == 1: # Long position
+            loss_price = self.account.entry_price - self.stop_loss_points
+            if current_bar['low'] <= loss_price:
+                log.warning(f"STOP-LOSS HIT (Long) at {self.df.index[self.current_step]}. Stop Price: {loss_price}")
+                self._force_close_position_now(loss_price) # Exit at the stop price
+                return True
+        elif self.account.position == -1: # Short position
+            loss_price = self.account.entry_price + self.stop_loss_points
+            if current_bar['high'] >= loss_price:
+                log.warning(f"STOP-LOSS HIT (Short) at {self.df.index[self.current_step]}. Stop Price: {loss_price}")
+                self._force_close_position_now(loss_price) # Exit at the stop price
+                return True
+        return False
 
     def _force_close_position_now(self, execution_price: float):
         if self.account.position == 0:
@@ -248,10 +276,8 @@ class FuturesTradingEnv(gym.Env):
     def _handle_forced_exits(self) -> bool:
         action_forced = False
         
-        # <<< THE FIX IS HERE: Corrects the regime boundary data leak >>>
         if self.account.position != 0 and self.is_regime_boundary.iloc[self.current_step]:
             log.warning(f"REGIME BOUNDARY DETECTED at {self.df.index[self.current_step]}.")
-            # Use the price of the PREVIOUS bar to prevent lookahead bias.
             exit_price = self.df['close'].iloc[self.current_step - 1]
             log.warning(f"Forcing close of position at previous bar's close price: {exit_price}")
             self._force_close_position_now(exit_price)
