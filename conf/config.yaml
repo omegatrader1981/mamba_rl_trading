@@ -31,10 +31,11 @@ data:
     outlier_median_dev_threshold: 0.20
 
 # --- Feature Engineering (Defaults) ---
+# <<< THE FIX IS HERE: Using the OPTIMIZED feature parameters >>>
 features:
-  hurst_window: 100
-  momentum_window: 21
-  volatility_window: 21
+  hurst_window: 151
+  momentum_window: 48
+  volatility_window: 12
   z_score_window: 60
   pct_change_cap: 0.05 
   hl_pct_cap: 0.05     
@@ -56,8 +57,6 @@ environment:
   max_consecutive_holds_limit: 900
   min_lookback_hpo: 200
   max_lookback_hpo: 400
-  # <<< THE FIX IS HERE: Added the missing key to the schema >>>
-  lookback_window: 250
 
 # --- Model Configuration (Defaults) ---
 model:
@@ -98,9 +97,8 @@ optimization:
   weight_decay_max: 1e-3
   activity_reward_scale_min: 0.0
   activity_reward_scale_max: 0.1
-  # <<< THE FIX IS HERE: Using the code-correct parameter names >>>
-  num_mamba_layers_min: 1
-  num_mamba_layers_max: 4
+  mamba_layers_min: 1
+  mamba_layers_max: 4
   mamba_d_model_choices: [64, 128]
   mamba_d_state_choices: [16, 32]
   features_dim_choices: [128, 256]
