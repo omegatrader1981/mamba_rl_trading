@@ -1,12 +1,10 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# DEFINITIVE CACHE-OPTIMIZED VERSION: Structures layers for rapid iterative builds
-# and uses granular COPY commands to minimize cache invalidation.
+# DEFINITIVE CACHE-OPTIMIZED VERSION: Uses a digest-pinned base image for stability.
 
-# Use Ubuntu 20.04 base with Python 3.10
-FROM public.ecr.aws/ubuntu/ubuntu:20.04
+# <<< THE PERMANENT FIX IS HERE: Using the proven digest from the last successful build >>>
+FROM public.ecr.aws/ubuntu/ubuntu:20.04@sha256:82ecc783ac526d38e16db413dc693d282698087fe71c05f7d4f2b8add6cc2551
 
 # --- 1. LEAST FREQUENTLY CHANGED: System Environment & Dependencies ---
-# This layer will be cached and rarely rebuilt.
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
 ENV LANG=C.UTF-8
@@ -30,7 +28,6 @@ RUN curl https://bootstrap.pypa.io/get-pip.py | python3.10
 RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && ln -sf /usr/bin/python3.10 /usr/bin/python
 
 # --- 2. INFREQUENTLY CHANGED: CUDA Installation ---
-# This layer will also be cached.
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb \
     && dpkg -i cuda-keyring_1.0-1_all.deb \
     && apt-get update \
@@ -42,7 +39,6 @@ RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86
 WORKDIR /opt/ml/code
 
 # --- 3. OCCASIONALLY CHANGED: Python Dependencies ---
-# This layer is only rebuilt if requirements.txt changes.
 COPY requirements.txt .
 
 RUN python3 -m pip install --upgrade pip setuptools wheel packaging
@@ -52,15 +48,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install mamba-ssm==2.0.4 --no-build-isolation --no-cache-dir
 
 # --- 4. MOST FREQUENTLY CHANGED: Granular Source Code Copy ---
-# This is the superior caching strategy. Only changes to these specific
-# files/directories will invalidate this layer and subsequent ones.
 COPY src/ ./src/
 COPY conf/ ./conf/
 COPY launch_mamba_job.py .
 COPY launch_configs.yaml .
 
 # --- 5. Final Verification & Entrypoint ---
-# These will run on every build, but they are very fast.
 RUN echo "=== SYSTEM VERIFICATION ===" && \
     python3 --version && nvcc --version && \
     echo "=== PACKAGE VERIFICATION ===" && \
