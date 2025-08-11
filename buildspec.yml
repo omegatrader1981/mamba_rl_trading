@@ -3,8 +3,6 @@
 
 version: 0.2
 
-# <<< THE FIX IS HERE (Part 1): Define variables in a dedicated env block >>>
-# This is the professional standard and solves the YAML parsing error.
 env:
   variables:
     ACCOUNT_ID: "537124950121"
@@ -16,7 +14,6 @@ phases:
     runtime-versions:
       python: 3.10
     commands:
-      # <<< THE FIX IS HERE (Part 2): Add set -e for robust error handling >>>
       - set -e
       - 'echo "Installing ECR credential helper..."'
       - apt-get update -y
@@ -52,7 +49,6 @@ phases:
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
 
-# <<< THE FIX IS HERE (Part 3): Keep the clean -v2 cache path >>>
 cache:
   paths:
     - '/var/lib/docker-v2/**/*'
