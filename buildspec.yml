@@ -1,0 +1,58 @@
+# buildspec.yml for Project Phoenix
+# DEFINITIVE FINAL VERSION: Uses env block for variables and robust error handling.
+
+version: 0.2
+
+# <<< THE FIX IS HERE (Part 1): Define variables in a dedicated env block >>>
+# This is the professional standard and solves the YAML parsing error.
+env:
+  variables:
+    ACCOUNT_ID: "537124950121"
+    REGION: "eu-west-2"
+    IMAGE_REPO_NAME: "mamba-rl-trading"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.10
+    commands:
+      # <<< THE FIX IS HERE (Part 2): Add set -e for robust error handling >>>
+      - set -e
+      - 'echo "Installing ECR credential helper..."'
+      - apt-get update -y
+      - apt-get install -y amazon-ecr-credential-helper
+
+  pre_build:
+    commands:
+      - set -e
+      - 'echo "Configuring Docker for ECR Public..."'
+      - mkdir -p ~/.docker
+      - echo '{ "credsStore": "ecr-login" }' > ~/.docker/config.json
+      - 'echo "Logging in to Amazon ECR (Private)..."'
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+
+  build:
+    commands:
+      - set -e
+      - 'echo "Build started on $(date)"'
+      - 'echo "Building the Docker image with cache support..."'
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
+      - docker build --cache-from $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+
+  post_build:
+    commands:
+      - set -e
+      - 'echo "Build completed on $(date)"'
+      - 'echo "Pushing the Docker images to ECR..."'
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+
+# <<< THE FIX IS HERE (Part 3): Keep the clean -v2 cache path >>>
+cache:
+  paths:
+    - '/var/lib/docker-v2/**/*'
