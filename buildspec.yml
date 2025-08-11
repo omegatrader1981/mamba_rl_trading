@@ -1,0 +1,49 @@
+version: 0.2
+
+env:
+  variables:
+    ACCOUNT_ID: "537124950121"
+    REGION: "eu-west-2"
+    IMAGE_REPO_NAME: "mamba-rl-trading"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.10
+    commands:
+      - echo "Installing ECR credential helper..."
+      - apt-get update -y
+      - apt-get install -y amazon-ecr-credential-helper
+
+  pre_build:
+    commands:
+      - echo "Configuring ECR credential helper..."
+      - mkdir -p ~/.docker
+      - |
+        cat > ~/.docker/config.json << 'EOF'
+        { "credsStore": "ecr-login" }
+        EOF
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Pulling previous image for caching..."
+      - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || echo "No cached image available"
+
+  build:
+    commands:
+      - echo "Building with layer cache..."
+      - docker build \
+          --cache-from $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest \
+          -t $IMAGE_REPO_NAME:$IMAGE_TAG \
+          -t $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG \
+          .
+
+  post_build:
+    commands:
+      - echo "Pushing images to ECR..."
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker tag $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+
+cache:
+  paths:
+    - ~/.cache/pip/**/*
