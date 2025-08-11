@@ -1,5 +1,5 @@
 # buildspec.yml for Project Phoenix
-# DEFINITIVE FINAL VERSION: Bypasses get-login-password and uses the robust ECR credential helper.
+# DEFINITIVE FINAL VERSION: Corrects YAML indentation for the cache block.
 
 version: 0.2
 
@@ -15,7 +15,6 @@ phases:
 
   pre_build:
     commands:
-      # <<< THE FIX IS HERE: Configure Docker to use the credential helper >>>
       - 'echo "Configuring Docker for ECR Public..."'
       - mkdir -p ~/.docker
       - echo '{ "credsStore": "ecr-login" }' > ~/.docker/config.json
@@ -30,7 +29,6 @@ phases:
     commands:
       - 'echo "Build started on $(date)"'
       - 'echo "Building the Docker image with cache support..."'
-      # Now, when Docker tries to pull from public.ecr.aws, the credential helper will automatically provide a token.
       - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
       - docker build --cache-from $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest -t $IMAGE_REPO_NAME:$IMAGE_TAG .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
@@ -43,6 +41,7 @@ phases:
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
 
+# <<< THE FIX IS HERE: The cache block is now at the correct, top-level indentation. >>>
 cache:
   paths:
     - '/var/lib/docker-v2/**/*'
