@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+launcher_venv/
+.env
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local files
+*.db
+*.log
+output_*/
+multirun/
+baseline_analysis_report/
+pure_momentum_report/
+hmm_filtered_momentum_report/
+regime_filtered_momentum_report/
+
+# IDE / OS files
+.idea/
+.vscode/
+.DS_Store
