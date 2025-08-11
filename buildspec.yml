@@ -1,0 +1,63 @@
+version: 0.2
+
+env:
+  variables:
+    ACCOUNT_ID: "537124950121"
+    REGION: "eu-west-2"
+    IMAGE_REPO_NAME: "mamba-rl-trading"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.10
+    commands:
+      - 'echo "Installing ECR credential helper..."'
+      - apt-get update -y
+      - apt-get install -y amazon-ecr-credential-helper
+
+  pre_build:
+    commands:
+      - 'echo "=== PRE_BUILD PHASE START ==="'
+      - 'echo "Configuring Docker for ECR..."'
+      - mkdir -p ~/.docker
+      - 'echo "{\"credsStore\": \"ecr-login\"}" > ~/.docker/config.json'
+      - 'echo "Setting up environment variables..."'
+      - echo "Account ID - $ACCOUNT_ID"
+      - echo "Region - $REGION"
+      - echo "Repository - $IMAGE_REPO_NAME"
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Image tag - $IMAGE_TAG"
+      - 'echo "Checking AWS identity..."'
+      - aws sts get-caller-identity || echo "Failed to get caller identity"
+      - 'echo "Testing ECR access..."'
+      - aws ecr describe-repositories --region $REGION --repository-names $IMAGE_REPO_NAME || echo "Repository might not exist or no access"
+      - 'echo "Getting ECR login token..."'
+      - aws ecr get-login-password --region $REGION > /tmp/ecr_token
+      - echo "Token retrieved, length:" $(cat /tmp/ecr_token | wc -c)
+      - 'echo "Attempting Docker login..."'
+      - cat /tmp/ecr_token | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+      - rm /tmp/ecr_token
+      - 'echo "ECR login successful"'
+      - 'echo "=== PRE_BUILD PHASE END ==="'
+
+  build:
+    commands:
+      - 'echo "Build started on $(date)"'
+      - 'echo "Building the Docker image with cache support..."'
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
+      - docker build --cache-from $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+
+  post_build:
+    commands:
+      - 'echo "Build completed on $(date)"'
+      - 'echo "Tagging and Pushing Docker images to ECR..."'
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+
+cache:
+  paths:
+    - '/var/lib/docker-v2/**/*'
