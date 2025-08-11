@@ -1,0 +1,44 @@
+version: 0.2
+
+env:
+  variables:
+    ACCOUNT_ID: "537124950121"
+    REGION: "eu-west-2"
+    IMAGE_REPO_NAME: "mamba-rl-trading"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.10
+    commands:
+      - 'echo "Installing ECR credential helper..."'
+      - apt-get update -y
+      - apt-get install -y amazon-ecr-credential-helper
+
+  pre_build:
+    commands:
+      # This is the only command needed. It tells Docker to use the helper.
+      # All subsequent docker commands (pull, build, push) will be automatically authenticated.
+      - 'echo "Configuring Docker to use the ECR credential helper..."'
+      - mkdir -p ~/.docker
+      - echo '{ "credsStore": "ecr-login" }' > ~/.docker/config.json
+
+  build:
+    commands:
+      - 'echo "Build started on $(date)"'
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      # Docker will now automatically use the helper to authenticate for this build command.
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+
+  post_build:
+    commands:
+      - 'echo "Build completed on $(date)"'
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+
+cache:
+  paths:
+    - '/var/lib/docker-v2/**/*'
