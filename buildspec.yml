@@ -1,5 +1,5 @@
 # buildspec.yml for Project Phoenix
-# DEFINITIVE FINAL VERSION: Works around Docker's non-TTY login bug.
+# DEFINITIVE FINAL VERSION: Adds a clock sync command to prevent exit status 254.
 
 version: 0.2
 
@@ -7,6 +7,15 @@ runtime-versions:
   python: 3.10
 
 phases:
+  install:
+    commands:
+      # <<< THE FIX IS HERE: Install network time tools and sync the clock >>>
+      - 'echo "Installing ntpdate to sync clock..."'
+      - apt-get update -y
+      - apt-get install -y ntpdate
+      - 'echo "Forcing clock sync to fix potential skew..."'
+      - ntpdate time.nist.gov
+
   pre_build:
     commands:
       - 'echo "Logging in to Amazon ECR (Private)..."'
@@ -15,12 +24,8 @@ phases:
       - IMAGE_REPO_NAME=mamba-rl-trading
       - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
       - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-      
       - 'echo "Logging in to Amazon ECR (Public)..."'
-      # <<< THE FIX IS HERE: Use a temporary file to avoid the pipe issue >>>
-      - aws ecr-public get-login-password --region us-east-1 > ecr_public_token.txt
-      - cat ecr_public_token.txt | docker login --username AWS --password-stdin public.ecr.aws
-      - rm ecr_public_token.txt
+      - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 
   build:
     commands:
@@ -38,7 +43,6 @@ phases:
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
 
-# Using the new, clean cache path permanently.
 cache:
   paths:
     - '/var/lib/docker-v2/**/*'
