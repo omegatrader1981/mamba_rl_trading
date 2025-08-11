@@ -1,5 +1,5 @@
 # buildspec.yml for Project Phoenix
-# DEFINITIVE FINAL VERSION: Permanently uses the new, clean '-v2' cache path and adds explicit login for ECR Public.
+# DEFINITIVE FINAL VERSION: Adds explicit login for ECR Public and robust quoting.
 
 version: 0.2
 
