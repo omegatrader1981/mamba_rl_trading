@@ -1,5 +1,5 @@
 # buildspec.yml for Project Phoenix
-# DEFINITIVE FINAL VERSION: Adds a clock sync command to prevent exit status 254.
+# DEFINITIVE FINAL VERSION: Bypasses get-login-password and uses the robust ECR credential helper.
 
 version: 0.2
 
@@ -9,28 +9,28 @@ runtime-versions:
 phases:
   install:
     commands:
-      # <<< THE FIX IS HERE: Install network time tools and sync the clock >>>
-      - 'echo "Installing ntpdate to sync clock..."'
+      - 'echo "Installing ECR credential helper..."'
       - apt-get update -y
-      - apt-get install -y ntpdate
-      - 'echo "Forcing clock sync to fix potential skew..."'
-      - ntpdate time.nist.gov
+      - apt-get install -y amazon-ecr-credential-helper
 
   pre_build:
     commands:
+      # <<< THE FIX IS HERE: Configure Docker to use the credential helper >>>
+      - 'echo "Configuring Docker for ECR Public..."'
+      - mkdir -p ~/.docker
+      - echo '{ "credsStore": "ecr-login" }' > ~/.docker/config.json
       - 'echo "Logging in to Amazon ECR (Private)..."'
       - ACCOUNT_ID=537124950121
       - REGION=eu-west-2
       - IMAGE_REPO_NAME=mamba-rl-trading
       - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
       - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-      - 'echo "Logging in to Amazon ECR (Public)..."'
-      - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 
   build:
     commands:
       - 'echo "Build started on $(date)"'
       - 'echo "Building the Docker image with cache support..."'
+      # Now, when Docker tries to pull from public.ecr.aws, the credential helper will automatically provide a token.
       - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
       - docker build --cache-from $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest -t $IMAGE_REPO_NAME:$IMAGE_TAG .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
