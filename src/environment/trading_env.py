@@ -69,7 +69,6 @@ class FuturesTradingEnv(gym.Env):
 
     def _configure_simulation_params(self):
         self.tick_size = float(self.env_cfg.tick_size)
-        # <<< THE FIX IS HERE (Part 1): Add stop-loss parameters >>>
         self.stop_loss_ticks = int(self.env_cfg.get('stop_loss_ticks', 0)) # 0 means disabled
         if self.stop_loss_ticks > 0:
             self.stop_loss_points = self.stop_loss_ticks * self.tick_size
@@ -206,9 +205,7 @@ class FuturesTradingEnv(gym.Env):
     def step(self, action: int) -> Tuple[Dict[str, np.ndarray], float, bool, bool, dict]:
         portfolio_value_before = self.account.portfolio_value(self._get_current_price())
         
-        # <<< THE FIX IS HERE (Part 2): Check for stop-loss before agent acts >>>
         stop_loss_hit = self._check_for_stop_loss()
-        
         forced_exit_occurred = self._handle_forced_exits()
 
         if not forced_exit_occurred and not stop_loss_hit:
@@ -247,10 +244,8 @@ class FuturesTradingEnv(gym.Env):
         if self.account.position == 0 or self.stop_loss_points == 0:
             return False
 
-        # We need to check against the low/high of the bar for a more realistic stop
         current_bar = self.df.iloc[self.current_step]
         
-        unrealized_pnl = 0.0
         if self.account.position == 1: # Long position
             loss_price = self.account.entry_price - self.stop_loss_points
             if current_bar['low'] <= loss_price:
