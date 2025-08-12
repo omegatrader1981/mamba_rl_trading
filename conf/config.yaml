@@ -54,7 +54,9 @@ environment:
   hold_penalty_scale: 0.0
   activity_reward_scale: 0.0
   max_consecutive_holds_limit: 900
-  stop_loss_ticks: 50 # 50 ticks = 12.5 points for MNQ ($25 risk).
+  stop_loss_ticks: 50
+  # <<< THE FIX IS HERE: Add the missing key to the schema >>>
+  lookback_window: 252 # A sensible default value
   min_lookback_hpo: 200
   max_lookback_hpo: 400
 
@@ -67,7 +69,7 @@ model:
   mamba_d_conv_default: 2
   mamba_expand_default: 2
 
-# --- Optimization (Defaults) ---
+# ... (rest of the file is the same) ...
 optimization:
   n_trials: 1
   timeout_seconds: null
@@ -108,7 +110,6 @@ optimization:
   momentum_window_choices: [10, 21]
   volatility_window_choices: [10, 21]
 
-# --- Training & Evaluation (Final Run Settings) ---
 training:
   total_timesteps: 1000000 
   use_vec_normalize: true 
@@ -119,7 +120,6 @@ training:
 evaluation:
   deterministic_actions: true 
 
-# --- Saving Configuration (Uses Interpolation) ---
 saving:
   output_dir: output_mamba_${instrument.symbol}_${experiment.name}
   scaler_filename: ${instrument.symbol}_scaler_${experiment.name}.joblib
@@ -138,10 +138,8 @@ saving:
   log_filename: mamba_rl_trading_${experiment.name}.log
   checkpoint_dir_name: 'checkpoints_${experiment.name}'
 
-# --- Device Configuration ---
 device: auto 
 
-# --- Hydra Settings ---
 hydra:
   run:
     dir: ${saving.output_dir}/${now:%Y-%m-%d_%H-%M-%S}
