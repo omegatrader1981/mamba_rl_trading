@@ -4,7 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Virtual Environment
+# Virtual Environments
 venv/
 launcher_venv/
 .env
@@ -14,7 +14,7 @@ build/
 dist/
 *.egg-info/
 
-# Local files
+# Local Test/Analysis Outputs
 *.db
 *.log
 output_*/
@@ -23,6 +23,8 @@ baseline_analysis_report/
 pure_momentum_report/
 hmm_filtered_momentum_report/
 regime_filtered_momentum_report/
+job_artifacts/
+analysis_results/
 
 # IDE / OS files
 .idea/
