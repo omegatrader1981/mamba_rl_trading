@@ -1,18 +1,12 @@
 # @package _global_
-
-# --- Defaults List ---
 defaults:
   - _self_
   - instrument: mnq
   - experiment: refine
   - override hydra/job_logging: default
-
-# <<< Global Debug Flags >>>
 debug_autograd_anomaly: false
 use_mamba_nan_callback: true
 mamba_nan_callback_freq: 500
-
-# --- Data Configuration (Common Settings) ---
 data:
   data_dir: "." 
   sagemaker_channel_name: training
@@ -29,8 +23,6 @@ data:
     min_allowable_price: 0.01
     outlier_rolling_window: 21 
     outlier_median_dev_threshold: 0.20
-
-# --- Feature Engineering (Defaults) ---
 features:
   hurst_window: 151
   momentum_window: 48
@@ -40,8 +32,6 @@ features:
   hl_pct_cap: 0.05     
   hmm_n_components: 2
   hmm_min_samples: 500
-
-# --- Environment Configuration (Common Settings) ---
 environment:
   env_id: FuturesTradingEnv-v0
   max_episode_steps: 4096
@@ -50,17 +40,16 @@ environment:
   spread_ticks_min: 1           
   spread_ticks_max: 2           
   max_slippage_points: 0.25
-  reward_type: "profit" 
-  hold_penalty_scale: 0.0
-  activity_reward_scale: 0.0
   max_consecutive_holds_limit: 900
   stop_loss_ticks: 50
-  # <<< THE FIX IS HERE: Add the missing key to the schema >>>
-  lookback_window: 252 # A sensible default value
+  lookback_window: 252
   min_lookback_hpo: 200
   max_lookback_hpo: 400
-
-# --- Model Configuration (Defaults) ---
+  reward_scheme: 'ppo_legacy'
+  activity_bonus_scale: 0.01
+  hold_penalty_scale: 0.001
+  win_bonus_scale: 0.5
+  loss_penalty_scale: 1.0
 model:
   net_arch_pi_vf_options: [[64, 64], [128, 128]] 
   mlp_activation_fn_name: 'relu' 
@@ -68,23 +57,14 @@ model:
   mamba_extractor_validation: {input_nan_inf_replacement: 0.0, input_clipping_value: 10.0} 
   mamba_d_conv_default: 2
   mamba_expand_default: 2
-
-# ... (rest of the file is the same) ...
 optimization:
   n_trials: 1
-  timeout_seconds: null
   metric: 'sharpe'
   direction: 'maximize'
-  max_eval_steps: 2000
   pruning: {}
   n_jobs: 1
   trial_timesteps: 1000
-  lr_min: 1e-6
-  lr_max: 1e-5
   ppo_n_steps_choices_hpo: [256, 512]
-  batch_size_choices: [32, 64]
-  gamma_min: 0.99
-  gamma_max: 0.999
   gae_lambda_min: 0.9
   gae_lambda_max: 0.98
   ent_coef_min: 0.0
@@ -95,51 +75,62 @@ optimization:
   max_grad_norm_max: 5.0
   clip_range_min: 0.1
   clip_range_max: 0.3
+  buffer_size_choices: [100000, 200000]
+  tau_min: 0.005
+  tau_max: 0.02
+  train_freq_choices: [8, 16, 32]
+  learning_starts: 10000
+  activity_bonus_scale_min: 0.0
+  activity_bonus_scale_max: 0.05
+  hold_penalty_scale_min: 0.0
+  hold_penalty_scale_max: 0.01
+  win_bonus_scale_min: 0.1
+  win_bonus_scale_max: 1.0
+  loss_penalty_scale_min: 0.5
+  loss_penalty_scale_max: 2.0
+  lr_min: 1e-6
+  lr_max: 1e-5
+  batch_size_choices: [32, 64, 128, 256, 512]
+  gamma_min: 0.98
+  gamma_max: 0.999
   weight_decay_min: 0.0
   weight_decay_max: 1e-3
-  activity_reward_scale_min: 0.0
-  activity_reward_scale_max: 0.1
   mamba_layers_min: 1
   mamba_layers_max: 4
   mamba_d_model_choices: [64, 128]
-  mamba_d_state_choices: [16, 32]
+  mamba_d_state_choices: [8, 16, 32]
   features_dim_choices: [128, 256]
   dropout_min: 0.0
   dropout_max: 0.2
-  hurst_window_choices: [50, 100]
-  momentum_window_choices: [10, 21]
-  volatility_window_choices: [10, 21]
-
+  hurst_window_choices: [50, 100, 150]
+  momentum_window_choices: [10, 21, 42, 48]
+  volatility_window_choices: [10, 12, 21, 42]
 training:
   total_timesteps: 1000000 
   use_vec_normalize: true 
   ppo_n_epochs: 10
   n_envs_final_train: 1
   use_subproc_vec_env: false
-
 evaluation:
   deterministic_actions: true 
-
 saving:
   output_dir: output_mamba_${instrument.symbol}_${experiment.name}
-  scaler_filename: ${instrument.symbol}_scaler_${experiment.name}.joblib
+  scaler_filename: ${instrument.symbol}_scaler.joblib
   optuna_study_name: ${instrument.symbol}_Opt_${experiment.name}
-  optuna_db_name: optuna_study_${instrument.symbol}_${experiment.name}.db 
-  best_params_filename: ${instrument.symbol}_best_params_${experiment.name}.joblib 
-  final_model_filename: ${instrument.symbol}_final_model_${experiment.name}.zip 
-  vec_normalize_filename: ${instrument.symbol}_vecnormalize_final_${experiment.name}.pkl
-  trades_filename: test_trades_${experiment.name}.csv
-  equity_filename: test_equity_${experiment.name}.csv
-  report_filename: ${instrument.symbol}_report_${experiment.name}.html
-  optuna_history_plot: optuna_history_${experiment.name}.png 
-  optuna_importance_plot: optuna_importance_${experiment.name}.png 
-  equity_curve_plot: equity_curve_${experiment.name}.png
-  positions_plot: positions_plot_${experiment.name}.png
-  log_filename: mamba_rl_trading_${experiment.name}.log
-  checkpoint_dir_name: 'checkpoints_${experiment.name}'
-
+  optuna_db_name: optuna_study_${instrument.symbol}.db 
+  best_params_filename: ${instrument.symbol}_best_params.joblib 
+  final_model_filename: ${instrument.symbol}_final_model.zip 
+  vec_normalize_filename: ${instrument.symbol}_vecnormalize_final.pkl
+  trades_filename: test_trades.csv
+  equity_filename: test_equity.csv
+  report_filename: ${instrument.symbol}_report.html
+  optuna_history_plot: optuna_history.png 
+  optuna_importance_plot: optuna_importance.png 
+  equity_curve_plot: equity_curve.png
+  positions_plot: positions_plot.png
+  log_filename: mamba_rl_trading.log
+  checkpoint_dir_name: 'checkpoints'
 device: auto 
-
 hydra:
   run:
     dir: ${saving.output_dir}/${now:%Y-%m-%d_%H-%M-%S}

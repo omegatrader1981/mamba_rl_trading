@@ -3,17 +3,14 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
 # Virtual Environments
 venv/
 launcher_venv/
 .env
-
 # Build artifacts
 build/
 dist/
 *.egg-info/
-
 # Local Test/Analysis Outputs
 *.db
 *.log
@@ -25,7 +22,7 @@ hmm_filtered_momentum_report/
 regime_filtered_momentum_report/
 job_artifacts/
 analysis_results/
-
+ppo_champion_results/
 # IDE / OS files
 .idea/
 .vscode/
