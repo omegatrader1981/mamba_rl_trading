@@ -1,0 +1,48 @@
+version: 0.2
+
+env:
+  variables:
+    ACCOUNT_ID: "537124950121"
+    REGION: "eu-west-2"
+    IMAGE_REPO_NAME: "mamba-rl-trading"
+    DOCKER_BUILDKIT: "1"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.10
+    commands:
+      - echo "Installing ECR credential helper..."
+      - apt-get update -y
+      - apt-get install -y amazon-ecr-credential-helper
+
+  pre_build:
+    commands:
+      - echo "Configuring Docker to use the ECR credential helper..."
+      - mkdir -p ~/.docker
+      - echo '{"credsStore":"ecr-login"}' > ~/.docker/config.json
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Pulling latest image to be used as a cache source..."
+      - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
+
+  build:
+    commands:
+      - echo "Build started on $(date)"
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Building with BuildKit and ECR cache..."
+      - >
+        docker buildx build
+        --cache-from=type=registry,ref=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+        --cache-to=type=registry,ref=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:buildcache,mode=max
+        -t $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+        -t $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+        --load
+        .
+
+  post_build:
+    commands:
+      - echo "Build completed on $(date)"
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Pushing images to ECR..."
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
