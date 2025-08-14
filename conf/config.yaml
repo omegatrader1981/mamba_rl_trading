@@ -50,6 +50,7 @@ environment:
   hold_penalty_scale: 0.001
   win_bonus_scale: 0.5
   loss_penalty_scale: 1.0
+  unrealized_loss_penalty_scale: 0.0
 model:
   net_arch_pi_vf_options: [[64, 64], [128, 128]] 
   mlp_activation_fn_name: 'relu' 
@@ -88,6 +89,8 @@ optimization:
   win_bonus_scale_max: 1.0
   loss_penalty_scale_min: 0.5
   loss_penalty_scale_max: 2.0
+  unrealized_loss_penalty_scale_min: 0.0
+  unrealized_loss_penalty_scale_max: 0.1
   lr_min: 1e-6
   lr_max: 1e-5
   batch_size_choices: [32, 64, 128, 256, 512]

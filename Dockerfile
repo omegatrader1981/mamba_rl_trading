@@ -1,10 +1,8 @@
 # Dockerfile for Futures RL Trading Strategy (mamba_rl_trading)
-# DEFINITIVE FINAL VERSION: Uses the standard Docker Hub base image to avoid ECR Public auth issues.
+# DEFINITIVE FINAL VERSION: Consolidates all apt-get installs and uses a digest-pinned base image for stable caching.
 
-# <<< THE PERMANENT FIX IS HERE: Use the standard, public Docker Hub image for Ubuntu >>>
-FROM ubuntu:20.04
+FROM public.ecr.aws/ubuntu/ubuntu:20.04@sha256:82ecc783ac526d38e16db413dc693d282698087fe71c05f7d4f2b8add6cc2551
 
-# --- 1. LEAST FREQUENTLY CHANGED: System Environment & Dependencies ---
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Etc/UTC
 ENV LANG=C.UTF-8
@@ -15,10 +13,12 @@ ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0 7.5 8.0 8.6+PTX"
 
+# Consolidates all system package installations into a single, stable layer.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     software-properties-common curl wget gnupg2 ca-certificates build-essential \
     cmake ninja-build git unzip pkg-config libjpeg-dev libpng-dev \
+    amazon-ecr-credential-helper \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update \
     && apt-get install -y --no-install-recommends python3.10 python3.10-dev python3.10-distutils \
@@ -27,7 +27,7 @@ RUN apt-get update && \
 RUN curl https://bootstrap.pypa.io/get-pip.py | python3.10
 RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && ln -sf /usr/bin/python3.10 /usr/bin/python
 
-# --- 2. INFREQUENTLY CHANGED: CUDA Installation ---
+# CUDA installation layer.
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb \
     && dpkg -i cuda-keyring_1.0-1_all.deb \
     && apt-get update \
@@ -38,22 +38,21 @@ RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86
 
 WORKDIR /opt/ml/code
 
-# --- 3. OCCASIONALLY CHANGED: Python Dependencies ---
+# Python package installation layer. This is only rebuilt if requirements.txt changes.
 COPY requirements.txt .
-
 RUN python3 -m pip install --upgrade pip setuptools wheel packaging
 RUN pip install --no-cache-dir sagemaker-training==4.5.0 packaging==23.1
 RUN pip install --no-cache-dir torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install mamba-ssm==2.0.4 --no-build-isolation --no-cache-dir
 
-# --- 4. MOST FREQUENTLY CHANGED: Granular Source Code Copy ---
+# Source code layer. This is the most frequently rebuilt layer.
 COPY src/ ./src/
 COPY conf/ ./conf/
 COPY launch_mamba_job.py .
 COPY launch_configs.yaml .
 
-# --- 5. Final Verification & Entrypoint ---
+# Final verification layer.
 RUN echo "=== SYSTEM VERIFICATION ===" && \
     python3 --version && nvcc --version && \
     echo "=== PACKAGE VERIFICATION ===" && \

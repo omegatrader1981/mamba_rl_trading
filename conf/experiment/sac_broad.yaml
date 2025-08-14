@@ -1,7 +1,10 @@
 # @package _global_
+
+# HPO settings for Phase 6a, Iteration 2: More Aggressive Reward Shaping
 experiment:
-  name: Phase6a_SAC_Broad
+  name: Phase6a_SAC_Broad_V2
   agent_type: sac
+
 optimization:
   n_trials: 50
   metric: 'sharpe'
@@ -12,8 +15,10 @@ optimization:
     n_startup_trials: 10
     n_warmup_steps: 5
     interval_steps: 2
+  
   n_jobs: 1
   trial_timesteps: 75000
+  
   lr_min: 1e-5
   lr_max: 1e-3
   batch_size_choices: [256, 512]
@@ -24,6 +29,7 @@ optimization:
   tau_max: 0.02
   train_freq_choices: [8, 16, 32]
   learning_starts: 10000
+
   activity_bonus_scale_min: 0.0
   activity_bonus_scale_max: 0.05
   hold_penalty_scale_min: 0.0
@@ -32,6 +38,9 @@ optimization:
   win_bonus_scale_max: 1.0
   loss_penalty_scale_min: 0.5
   loss_penalty_scale_max: 2.0
+  unrealized_loss_penalty_scale_min: 0.0
+  unrealized_loss_penalty_scale_max: 0.1
+  
   weight_decay_min: 0.0
   weight_decay_max: 1e-4
   mamba_layers_min: 2 
@@ -41,5 +50,6 @@ optimization:
   features_dim_choices: [128, 256]
   dropout_min: 0.0
   dropout_max: 0.2
+
 environment:
   reward_scheme: 'sac_shaped'
