@@ -1,3 +1,6 @@
+# buildspec.yml for Project Phoenix
+# DEFINITIVE FINAL VERSION: Builds the fast app image. Caching is now implicit.
+
 version: 0.2
 
 env:
@@ -10,29 +13,20 @@ env:
 phases:
   pre_build:
     commands:
-      - echo "Logging in to ECR..."
+      - 'echo "Logging in to ECR..."'
       - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 763104351884.dkr.ecr.us-east-1.amazonaws.com
-      - echo "Ensuring Docker Buildx builder exists..."
-      - docker buildx inspect mybuilder > /dev/null 2>&1 || docker buildx create --name mybuilder --use --bootstrap
-      - echo "Pulling latest image to be used as a cache source..."
-      - docker pull $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest || true
 
   build:
     commands:
-      - echo "Building with BuildKit and ECR cache..."
+      - 'echo "Build started on $(date)"'
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
-      - |
-        docker buildx build \
-          --cache-from=type=registry,ref=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:buildcache \
-          --cache-to=type=registry,ref=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:buildcache,mode=max \
-          -t $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG \
-          -t $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest \
-          --load \
-          .
+      # This build is now very fast because the base image has everything pre-installed
+      - docker build -t $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG .
 
   post_build:
     commands:
-      - echo "Pushing images to ECR..."
+      - 'echo "Build completed on $(date)"'
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - 'echo "Tagging and Pushing Docker images to ECR..."'
+      - docker tag $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
       - docker push --all-tags $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_REPO_NAME

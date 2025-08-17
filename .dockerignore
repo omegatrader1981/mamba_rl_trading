@@ -1,21 +1,43 @@
-# .dockerignore
-
-# Ignore the Python virtual environment. This is critical.
-venv/
-sagemaker_env/
-
-# Ignore Git files
-.git/
-.gitignore
-
-# Ignore Python cache files
+# === Python ===
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+pip-log.txt
+.pytest_cache/
 
-# Ignore local config/temp files
+# === Virtual environments ===
+venv/
+launcher_venv/
+
+# === IDE & Editors ===
 .idea/
 .vscode/
-*.DS_Store
-build-test
-Dockerfile.debug
+*.swp
+.DS_Store
+
+# === Git ===
+.git/
+.gitignore
+
+# === Logs, Databases, Temp Files ===
+*.db
+*.log
+
+# === Local Outputs (CRITICAL) ===
+output_*/
+multirun/
+baseline_analysis_report/
+pure_momentum_report/
+hmm_filtered_momentum_report/
+regime_filtered_momentum_report/
+job_artifacts/
+analysis_results/
+ppo_champion_results/
+dlc_requirements.txt
+
+# === CI/CD & Docs (not needed in image) ===
+README.md
+LICENSE
+docker/
+buildspec.yml
