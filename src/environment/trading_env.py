@@ -1,5 +1,4 @@
-# src/environment/trading_env.py
-# <<< DEFINITIVE SAC VERSION: Implements a continuous Box action space. >>>
+# <<< DEFINITIVE SAC VERSION: Implements a continuous Box action space and correctly initializes all attributes. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -16,14 +15,13 @@ log = logging.getLogger(__name__)
 
 class FuturesTradingEnv(gym.Env):
     metadata = {'render_modes': ['human', None]}
-    # Discrete actions are now internal logic, not the primary action space
     _ACTION_HOLD, _ACTION_ENTER_LONG, _ACTION_ENTER_SHORT, _ACTION_EXIT_POSITION = 0, 1, 2, 3
 
     def __init__(self, df: pd.DataFrame, feature_cols: List[str], cfg: DictConfig):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Continuous Action Space Version)...")
+        log.info("Initializing FuturesTradingEnv (Continuous Action Space, Final Fix Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
@@ -76,15 +74,17 @@ class FuturesTradingEnv(gym.Env):
         self.spread_ticks_max = int(self.env_cfg.get('spread_ticks_max', 2))
         self.max_slippage_ticks = float(self.env_cfg.max_slippage_points) / self.tick_size
         self.base_contracts = int(self.env_cfg.get('position_sizing.base_contracts', 1))
-        self.activity_reward_scale = float(self.env_cfg.get('activity_reward_scale', 0.0))
-        self.hold_penalty_scale = float(self.env_cfg.get('hold_penalty_scale', 0.0))
-        self.win_bonus_scale = float(self.env_cfg.get('win_bonus_scale', 0.0))
-        self.loss_penalty_scale = float(self.env_cfg.get('loss_penalty_scale', 0.0))
-        self.unrealized_loss_penalty_scale = float(self.env_cfg.get('unrealized_loss_penalty_scale', 0.0))
         self.max_consecutive_holds_limit = int(self.env_cfg.get("max_consecutive_holds_limit", 900))
         self.excessive_hold_penalty = float(self.env_cfg.get("excessive_hold_penalty", 0.5))
         self.reward_scheme = self.env_cfg.get('reward_scheme', 'ppo_legacy')
         self.action_threshold = float(self.env_cfg.get('action_threshold', 0.5))
+
+        # Initialize all reward shaping params as instance attributes
+        self.activity_bonus_scale = float(self.env_cfg.get('activity_bonus_scale', 0.0))
+        self.hold_penalty_scale = float(self.env_cfg.get('hold_penalty_scale', 0.0))
+        self.win_bonus_scale = float(self.env_cfg.get('win_bonus_scale', 0.0))
+        self.loss_penalty_scale = float(self.env_cfg.get('loss_penalty_scale', 0.0))
+        self.unrealized_loss_penalty_scale = float(self.env_cfg.get('unrealized_loss_penalty_scale', 0.0))
 
     def _define_spaces(self):
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
