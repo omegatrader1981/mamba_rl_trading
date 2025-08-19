@@ -1,4 +1,4 @@
-# <<< DEFINITIVE SAC VERSION: Implements a continuous Box action space and correctly initializes all attributes. >>>
+# <<< DEFINITIVE SAC VERSION: Removes the hard stop-loss to allow the agent to learn risk management. >>>
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -21,7 +21,7 @@ class FuturesTradingEnv(gym.Env):
         super().__init__()
         self.cfg_main = cfg
         self.env_cfg = cfg.environment
-        log.info("Initializing FuturesTradingEnv (Continuous Action Space, Final Fix Version)...")
+        log.info("Initializing FuturesTradingEnv (No Hard Stop-Loss Version)...")
 
         self._validate_inputs(df, feature_cols)
         self.df = self._prepare_dataframe(df)
@@ -62,13 +62,6 @@ class FuturesTradingEnv(gym.Env):
 
     def _configure_simulation_params(self):
         self.tick_size = float(self.env_cfg.tick_size)
-        self.stop_loss_ticks = int(self.env_cfg.get('stop_loss_ticks', 0))
-        if self.stop_loss_ticks > 0:
-            self.stop_loss_points = self.stop_loss_ticks * self.tick_size
-            log.info(f"Hard stop-loss enabled at {self.stop_loss_ticks} ticks ({self.stop_loss_points} points).")
-        else:
-            self.stop_loss_points = 0
-            log.info("Hard stop-loss is disabled.")
         self.add_bid_ask_spread = bool(self.env_cfg.get('add_bid_ask_spread', False))
         self.spread_ticks_min = int(self.env_cfg.get('spread_ticks_min', 1))
         self.spread_ticks_max = int(self.env_cfg.get('spread_ticks_max', 2))
@@ -79,7 +72,6 @@ class FuturesTradingEnv(gym.Env):
         self.reward_scheme = self.env_cfg.get('reward_scheme', 'ppo_legacy')
         self.action_threshold = float(self.env_cfg.get('action_threshold', 0.5))
 
-        # Initialize all reward shaping params as instance attributes
         self.activity_bonus_scale = float(self.env_cfg.get('activity_bonus_scale', 0.0))
         self.hold_penalty_scale = float(self.env_cfg.get('hold_penalty_scale', 0.0))
         self.win_bonus_scale = float(self.env_cfg.get('win_bonus_scale', 0.0))
@@ -195,16 +187,15 @@ class FuturesTradingEnv(gym.Env):
         portfolio_value_before = self.account.portfolio_value(self._get_current_price())
         position_was_flat = self.account.position == 0
         
-        stop_loss_hit = self._check_for_stop_loss()
         forced_exit_occurred = self._handle_forced_exits()
-        if not forced_exit_occurred and not stop_loss_hit:
+        if not forced_exit_occurred:
             self._execute_agent_trade(discrete_action)
         else:
             self._trade_occurred_this_step = True
             self._is_invalid_action = False
         
         if self.account.position != 0: self.account.steps_in_trade += 1
-        if discrete_action == self._ACTION_HOLD and not (forced_exit_occurred or stop_loss_hit):
+        if discrete_action == self._ACTION_HOLD and not forced_exit_occurred:
             self._consecutive_holds += 1
         else:
             self._consecutive_holds = 0
@@ -238,21 +229,6 @@ class FuturesTradingEnv(gym.Env):
         terminated = terminated_by_penalty or (self.current_step >= len(self.df) - 1)
         truncated = self.current_step >= len(self.df) - 1
         return self._get_obs(), reward, terminated, truncated, self._get_info()
-
-    def _check_for_stop_loss(self) -> bool:
-        if self.account.position == 0 or self.stop_loss_points == 0: return False
-        current_bar = self.df.iloc[self.current_step]
-        if self.account.position == 1:
-            loss_price = self.account.entry_price - self.stop_loss_points
-            if current_bar['low'] <= loss_price:
-                self._force_close_position_now(loss_price)
-                return True
-        elif self.account.position == -1:
-            loss_price = self.account.entry_price + self.stop_loss_points
-            if current_bar['high'] >= loss_price:
-                self._force_close_position_now(loss_price)
-                return True
-        return False
 
     def _force_close_position_now(self, execution_price: float):
         if self.account.position == 0: return

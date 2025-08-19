@@ -1,11 +1,10 @@
-# conf/config.yaml
 # @package _global_
-# DEFINITIVE VERSION: Includes the complete schema for all PPO, SAC, and Reward Shaping parameters.
+# DEFINITIVE SAC VERSION: Removes the hard stop-loss parameter.
 
 defaults:
   - _self_
   - instrument: mnq
-  - experiment: refine
+  - experiment: sac_broad # Default to the new SAC experiment
   - override hydra/job_logging: default
 
 debug_autograd_anomaly: false
@@ -48,18 +47,16 @@ environment:
   spread_ticks_max: 2           
   max_slippage_points: 0.25
   max_consecutive_holds_limit: 900
-  stop_loss_ticks: 50
   lookback_window: 252
   min_lookback_hpo: 200
   max_lookback_hpo: 400
-  reward_scheme: 'ppo_legacy'
+  reward_scheme: 'sac_shaped'
+  action_threshold: 0.5
   activity_bonus_scale: 0.01
   hold_penalty_scale: 0.001
   win_bonus_scale: 0.5
   loss_penalty_scale: 1.0
   unrealized_loss_penalty_scale: 0.0
-  # <<< THE FIX IS HERE >>>
-  action_threshold: 0.5 # Default threshold for continuous action space
 
 model:
   net_arch_pi_vf_options: [[64, 64], [128, 128]] 
