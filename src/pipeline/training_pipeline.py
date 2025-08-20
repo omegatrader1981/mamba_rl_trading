@@ -1,4 +1,4 @@
-# <<< DEFINITIVE FINAL FIX: Adds the missing 'List' import for type hinting. >>>
+# <<< DEFINITIVE FINAL VERSION: Fully instrumented for robust SageMaker execution. >>>
 
 import pandas as pd
 import logging
@@ -9,15 +9,17 @@ from omegaconf import DictConfig, OmegaConf
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback
-from typing import List # <<< THE FIX IS HERE
+from typing import List
 
 from src.optimize import run_optimization
 from src.evaluation import evaluate_agent
 from src.optimize.model_builder import create_ppo_model, create_sac_model
 from src.environment import FuturesTradingEnv
+from src.utils.sagemaker_utils import initialize_sagemaker_environment, sagemaker_safe
 
 log = logging.getLogger(__name__)
 
+@sagemaker_safe
 def train_and_evaluate_model(
     cfg: DictConfig,
     df_train_s: pd.DataFrame,
@@ -26,13 +28,13 @@ def train_and_evaluate_model(
     feature_cols: List[str],
     scaler: object
 ):
-    log.info("--- Starting Model Training & Evaluation Pipeline (Checkpoint-Enabled) ---")
+    cfg = initialize_sagemaker_environment(cfg)
     
-    checkpoint_dir = "/opt/ml/checkpoints"
+    log.info("--- Starting Model Training & Evaluation Pipeline (Resilient & Validated) ---")
+    
+    checkpoint_dir = cfg.checkpointing.s3_base_path
     sagemaker_model_dir = "/opt/ml/model"
-    sagemaker_output_dir = "/opt/ml/output/data"
-    os.makedirs(sagemaker_model_dir, exist_ok=True)
-    os.makedirs(sagemaker_output_dir, exist_ok=True)
+    sagemaker_output_dir = cfg.saving.output_dir
 
     study, best_params = run_optimization(cfg, df_train_s, df_val_s)
     if not best_params:
