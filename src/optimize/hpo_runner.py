@@ -1,4 +1,4 @@
-# <<< DEFINITIVE FINAL VERSION: More robust path handling and error checking. >>>
+# <<< CORRECTED: Now uses the correct, nested import path for utils. >>>
 
 import optuna
 from optuna.visualization import plot_optimization_history, plot_param_importances
@@ -9,7 +9,8 @@ import sqlite3
 from omegaconf import DictConfig
 from typing import Tuple, Dict, Any, Optional
 
-from src.utils import ensure_dir
+# <<< THE FIX IS HERE: Changed from 'src.utils' to 'src.utils.utils' >>>
+from src.utils.utils import ensure_dir
 from .objective import Objective
 
 log = logging.getLogger(__name__)

@@ -1,5 +1,4 @@
-# src/features/scaling.py
-# <<< CORRECTED: Now uses the correct absolute import path for utils. >>>
+# <<< CORRECTED: Now uses the correct, nested import path for utils. >>>
 
 import pandas as pd
 import joblib
@@ -7,8 +6,8 @@ import logging
 import os
 from sklearn.preprocessing import StandardScaler
 
-# <<< THE FIX IS HERE: Changed from '.utils' to 'src.utils' >>>
-from src.utils import ensure_dir
+# <<< THE FIX IS HERE: Changed from 'src.utils' to 'src.utils.utils' >>>
+from src.utils.utils import ensure_dir
 
 log = logging.getLogger(__name__)
 
