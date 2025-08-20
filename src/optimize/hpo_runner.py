@@ -1,7 +1,7 @@
-# src/optimize/hpo_runner.py
-# <<< FINAL CORRECTED VERSION: Decouples all file paths from config interpolation. >>>
+# <<< DEFINITIVE VERSION: Uses a resilient, S3-backed Optuna study database. >>>
 
 import optuna
+from optuna.storages import JournalStorage, JournalFileStorage # For S3
 from optuna.visualization import plot_optimization_history, plot_param_importances
 import pandas as pd
 import logging
@@ -16,19 +16,17 @@ log = logging.getLogger(__name__)
 
 def run_optimization(cfg: DictConfig, df_train: pd.DataFrame, df_val: pd.DataFrame) -> Tuple[Optional[optuna.Study], Optional[Dict[str, Any]]]:
     """
-    Sets up and executes the Optuna hyperparameter optimization study.
+    Sets up and executes the Optuna hyperparameter optimization study using S3 storage.
     """
-    # <<< THE FIX IS HERE: Create robust, non-interpolated paths directly. >>>
-    output_dir = os.getcwd()
-    db_filename = "optuna_study.db"
-    db_path = os.path.join(output_dir, db_filename)
-    storage_name = f"sqlite:///{db_path}"
+    storage_path = cfg.saving.optuna_db_name
+    storage = JournalStorage(JournalFileStorage(storage_path))
     
+    output_dir = os.getcwd()
     history_plot_path = os.path.join(output_dir, "optuna_history.png")
     importance_plot_path = os.path.join(output_dir, "optuna_importance.png")
     
     ensure_dir(output_dir)
-    log.info(f"Creating/loading Optuna study '{cfg.saving.optuna_study_name}' using storage: {storage_name}")
+    log.info(f"Creating/loading Optuna study '{cfg.saving.optuna_study_name}' using S3 storage: {storage_path}")
 
     pruner = None
     if cfg.optimization.pruning.enabled:
@@ -41,7 +39,7 @@ def run_optimization(cfg: DictConfig, df_train: pd.DataFrame, df_val: pd.DataFra
     try:
         study = optuna.create_study(
             study_name=cfg.saving.optuna_study_name,
-            storage=storage_name,
+            storage=storage,
             load_if_exists=True,
             direction=cfg.optimization.direction,
             pruner=pruner

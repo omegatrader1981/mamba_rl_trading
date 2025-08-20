@@ -1,10 +1,10 @@
 # @package _global_
-# DEFINITIVE SAC VERSION: Removes the hard stop-loss parameter.
+# DEFINITIVE FINAL VERSION: Includes checkpointing and S3-backed HPO database.
 
 defaults:
   - _self_
   - instrument: mnq
-  - experiment: sac_broad # Default to the new SAC experiment
+  - experiment: sac_broad
   - override hydra/job_logging: default
 
 debug_autograd_anomaly: false
@@ -65,6 +65,11 @@ model:
   mamba_extractor_validation: {input_nan_inf_replacement: 0.0, input_clipping_value: 10.0} 
   mamba_d_conv_default: 2
   mamba_expand_default: 2
+
+checkpointing:
+  enabled: true
+  save_freq: 10000
+  s3_base_path: "s3://mambabot/checkpoints/"
 
 optimization:
   n_trials: 1
@@ -131,7 +136,7 @@ saving:
   output_dir: output_mamba_${instrument.symbol}_${experiment.name}
   scaler_filename: ${instrument.symbol}_scaler.joblib
   optuna_study_name: ${instrument.symbol}_Opt_${experiment.name}
-  optuna_db_name: optuna_study_${instrument.symbol}.db 
+  optuna_db_name: s3://mambabot/optuna/${instrument.symbol}_${experiment.name}_study.db
   best_params_filename: ${instrument.symbol}_best_params.joblib 
   final_model_filename: ${instrument.symbol}_final_model.zip 
   vec_normalize_filename: ${instrument.symbol}_vecnormalize_final.pkl
