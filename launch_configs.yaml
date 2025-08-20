@@ -1,5 +1,5 @@
-# Central configuration for all SageMaker job types.
-# DEFINITIVE VERSION: Enables Managed Spot Training with checkpointing.
+# launch_configs.yaml
+# DEFINITIVE VERSION: Pivots the SAC HPO to the g4dn family for better Spot availability.
 
 smoke_test:
   instance_type: "ml.g4dn.xlarge"
@@ -20,7 +20,8 @@ phase5b_refine_hpo:
   hydra_experiment: "refine"
 
 phase6a_sac_broad:
-  instance_type: "ml.g5.xlarge"
+  # <<< THE FIX IS HERE: Switched to g4dn.2xlarge for higher availability >>>
+  instance_type: "ml.g4dn.2xlarge"
   instance_count: 1
   volume_size_gb: 100
   use_spot: true
