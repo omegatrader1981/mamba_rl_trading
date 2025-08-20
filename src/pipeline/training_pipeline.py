@@ -1,4 +1,4 @@
-# <<< DEFINITIVE VERSION: Implements checkpointing for the final training run. >>>
+# <<< DEFINITIVE FINAL FIX: Adds the missing 'List' import for type hinting. >>>
 
 import pandas as pd
 import logging
@@ -9,6 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback
+from typing import List # <<< THE FIX IS HERE
 
 from src.optimize import run_optimization
 from src.evaluation import evaluate_agent
