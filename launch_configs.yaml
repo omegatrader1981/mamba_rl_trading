@@ -1,5 +1,5 @@
 # launch_configs.yaml
-# DEFINITIVE FINAL VERSION: Implements a resilient, multi-instance Spot Fleet.
+# DEFINITIVE FINAL VERSION: Reverts to a single, high-availability instance type.
 
 smoke_test:
   instance_type: "ml.g4dn.xlarge"
@@ -20,18 +20,14 @@ phase5b_refine_hpo:
   hydra_experiment: "refine"
 
 phase6a_sac_broad:
-  # Using a list of instances for a resilient Spot Fleet
-  instance_types:
-    - "ml.g4dn.2xlarge"     # Primary: stable, older-gen, high availability
-    - "ml.g4dn.4xlarge"     # Fallback: more power, still stable
-    - "ml.g5.2xlarge"       # Fallback: newer, but try if g4dn is gone
-    - "ml.p3.2xlarge"       # Fallback: Tesla V100, widely available
+  # <<< THE FIX IS HERE: Revert to a single, reliable instance type >>>
+  instance_type: "ml.g4dn.2xlarge"
   instance_count: 1
   volume_size_gb: 100
   use_spot: true
   max_run_seconds: 172800
   max_wait_seconds: 259200
-  region: eu-west-1 # Explicitly set the stable region
+  region: eu-west-1
   checkpoint_s3_uri: "s3://mambabot-eu-west-1/checkpoints/mnq/Phase6a_SAC_Broad_V2"
   base_job_name_prefix: "mamba-{{instrument}}-p6a-sac-broad"
   hydra_experiment: "sac_broad"
