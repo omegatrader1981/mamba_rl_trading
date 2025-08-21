@@ -1,8 +1,8 @@
-# <<< DEFINITIVE FINAL VERSION: Supports multi-instance Spot Fleets. >>>
+# <<< DEFINITIVE FINAL VERSION: Uses HyperparameterTuner for robust Spot Fleet support. >>>
 
 import sagemaker
 from sagemaker.estimator import Estimator
-from sagemaker.inputs import TrainingInput
+from sagemaker.tuner import HyperparameterTuner, IntegerParameter
 import time
 import traceback
 import yaml
@@ -48,18 +48,17 @@ def main():
 
     sagemaker_session = sagemaker.Session(boto_session=boto3.Session(region_name=region))
 
-    # Handle both single instance_type and a list of instance_types
-    instance_type_config = job_config.get("instance_type") or job_config.get("instance_types")
+    primary_instance = (job_config.get("instance_type") or 
+                        job_config.get("instance_types", ["ml.g4dn.2xlarge"])[0])
 
     estimator = Estimator(
         image_uri=image_uri,
         role=role_arn,
         instance_count=job_config['instance_count'],
-        instance_type=instance_type_config,
+        instance_type=primary_instance,
         volume_size=job_config['volume_size_gb'],
         output_path=s3_output_base_path,
         sagemaker_session=sagemaker_session,
-        base_job_name=job_name_for_sagemaker,
         use_spot_instances=job_config['use_spot'],
         max_run=job_config['max_run_seconds'],
         max_wait=job_config.get('max_wait_seconds', job_config['max_run_seconds']),
@@ -68,19 +67,33 @@ def main():
         environment={"PYTHONUNBUFFERED": "1"}
     )
 
-    print(f"\n--- Launching SageMaker Training Job ---")
-    print(f"Job Name: {estimator.base_job_name}")
-    print(f"Docker Image: {image_uri}")
-    print(f"Instance Fleet: {instance_type_config}")
-    print(f"Input Data: {s3_input_data_uri}")
+    # Use HyperparameterTuner to enable instance diversity (Spot Fleet)
+    hyperparameter_ranges = {
+        'dummy_param': IntegerParameter(0, 0) # Dummy param, as tuner requires one.
+    }
+
+    tuner = HyperparameterTuner(
+        estimator=estimator,
+        objective_metric_name='sharpe', # Not used for single job, but required.
+        hyperparameter_ranges=hyperparameter_ranges,
+        metric_definitions=[{'Name': 'sharpe', 'Regex': 'Final Sharpe Ratio: ([-+]?[0-9]*\.?[0-9]+)'}],
+        max_jobs=1,
+        max_parallel_jobs=1,
+        base_tuning_job_name=job_name_for_sagemaker,
+        training_instance_types=job_config.get("instance_types")
+    )
+
+    print(f"\n--- Launching SageMaker Hyperparameter Tuning Job (as a wrapper for Spot Fleet) ---")
+    print(f"Job Name: {job_name_for_sagemaker}")
+    print(f"Instance Fleet: {job_config.get('instance_types')}")
 
     try:
-        estimator.fit({"training": s3_input_data_uri}, wait=False)
-        actual_job_name = estimator.latest_training_job.job_name
-        print(f"\n✅ Training job '{actual_job_name}' LAUNCHED successfully!")
-        print(f"   View job in SageMaker console: https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{actual_job_name}")
+        tuner.fit({"training": s3_input_data_uri}, wait=False)
+        actual_job_name = tuner.latest_tuning_job.job_name
+        print(f"\n✅ Tuning job '{actual_job_name}' LAUNCHED successfully!")
+        print(f"   View job in SageMaker console: https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/hyper-tuning-jobs/{actual_job_name}")
     except Exception as e:
-        print(f"\n❌ Error LAUNCHING SageMaker training job: {e}")
+        print(f"\n❌ Error LAUNCHING SageMaker job: {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":
