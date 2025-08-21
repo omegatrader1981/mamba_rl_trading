@@ -1,4 +1,4 @@
-# <<< DEFINITIVE FINAL VERSION: Launches the Estimator directly, removing the Tuner. >>>
+# <<< DEFINITIVE FINAL FIX: Points to the correct, nested S3 data path. >>>
 
 import sagemaker
 from sagemaker.estimator import Estimator
@@ -34,7 +34,9 @@ def main():
     
     s3_bucket_name = f"mambabot-{region}"
     s3_output_base_path = f"s3://{s3_bucket_name}/mamba-rl-trading/output/"
-    s3_input_data_uri = f"s3://{s3_bucket_name}/databento_mnq_downloads/"
+    
+    # <<< THE FIX IS HERE: Point to the exact subfolder containing the CSVs >>>
+    s3_input_data_uri = f"s3://{s3_bucket_name}/databento_mnq_downloads/databento_mnq_downloads_5min_2020_2024/"
 
     base_job_name_prefix = job_config['base_job_name_prefix'].replace("{{instrument}}", args.instrument)
     unique_job_name_suffix = time.strftime("%Y%m%d-%H%M%S")
