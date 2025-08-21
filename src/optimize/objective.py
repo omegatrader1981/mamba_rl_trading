@@ -1,4 +1,4 @@
-# <<< DEFINITIVE VERSION: Implements checkpoint loading for resumable HPO trials. >>>
+# <<< DEFINITIVE FINAL FIX: Removes lookback_window from HPO to ensure stable checkpointing. >>>
 
 import pandas as pd
 import logging
@@ -42,7 +42,6 @@ class Objective:
             df_val_featured['source_regime'] = 'validation_set'
 
             trial_env_cfg = trial_cfg.environment.copy()
-            OmegaConf.update(trial_env_cfg, "lookback_window", trial.suggest_int('lookback_window', self.cfg.environment.min_lookback_hpo, self.cfg.environment.max_lookback_hpo))
             
             agent_type = trial_cfg.experiment.get('agent_type', 'ppo')
             if agent_type == 'sac':

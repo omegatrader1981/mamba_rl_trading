@@ -1,5 +1,5 @@
 # @package _global_
-# DEFINITIVE FINAL VERSION: All paths fixed for SageMaker and full schema.
+# DEFINITIVE FINAL VERSION: Uses a fixed lookback_window to ensure stable checkpointing.
 
 defaults:
   - _self_
@@ -48,8 +48,6 @@ environment:
   max_slippage_points: 0.25
   max_consecutive_holds_limit: 900
   lookback_window: 252
-  min_lookback_hpo: 200
-  max_lookback_hpo: 400
   reward_scheme: 'sac_shaped'
   action_threshold: 0.5
   activity_bonus_scale: 0.01
@@ -72,17 +70,16 @@ checkpointing:
   s3_base_path: "/opt/ml/checkpoints"
 
 optimization:
-  n_trials: 1
+  n_trials: 50
   metric: 'sharpe'
   direction: 'maximize'
   pruning: 
-    enabled: false
-    n_startup_trials: 5
-    n_warmup_steps: 10
-    interval_steps: 1
+    enabled: true
+    n_startup_trials: 10
+    n_warmup_steps: 5
+    interval_steps: 2
   n_jobs: 1
-  timeout_seconds: null
-  trial_timesteps: 1000
+  trial_timesteps: 75000
   ppo_n_steps_choices_hpo: [256, 512]
   gae_lambda_min: 0.9
   gae_lambda_max: 0.98
