@@ -1,4 +1,5 @@
-# DEFINITIVE MIGRATION VERSION: Points to the eu-west-1 S3 bucket.
+# launch_configs.yaml
+# DEFINITIVE VERSION: Upgrades the SAC HPO to the more powerful ml.g5.4xlarge instance.
 
 smoke_test:
   instance_type: "ml.g4dn.xlarge"
@@ -19,12 +20,13 @@ phase5b_refine_hpo:
   hydra_experiment: "refine"
 
 phase6a_sac_broad:
-  instance_type: "ml.g5.xlarge"
+  # <<< THE UPGRADE IS HERE: Using the new, more powerful instance type >>>
+  instance_type: "ml.g5.4xlarge"
   instance_count: 1
   volume_size_gb: 100
   use_spot: true
-  max_run_seconds: 172800
-  max_wait_seconds: 259200
+  max_run_seconds: 172800 # 48 hours
+  max_wait_seconds: 259200 # 72 hours
   checkpoint_s3_uri: "s3://mambabot-eu-west-1/checkpoints/mnq/Phase6a_SAC_Broad_V2"
   base_job_name_prefix: "mamba-{{instrument}}-p6a-sac-broad"
   hydra_experiment: "sac_broad"
