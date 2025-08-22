@@ -1,5 +1,5 @@
 # @package _global_
-# DEFINITIVE FINAL VERSION: Uses a fixed lookback_window to ensure stable checkpointing.
+# DEFINITIVE FINAL VERSION: Includes the complete, refined SAC HPO schema.
 
 defaults:
   - _self_
@@ -95,7 +95,7 @@ optimization:
   tau_min: 0.005
   tau_max: 0.02
   train_freq_choices: [8, 16, 32]
-  learning_starts: 10000
+  learning_starts_choices: [20000, 30000]
   activity_bonus_scale_min: 0.0
   activity_bonus_scale_max: 0.05
   hold_penalty_scale_min: 0.0

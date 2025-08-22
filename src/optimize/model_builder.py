@@ -1,4 +1,4 @@
-# <<< CORRECTED: Now uses the correct, nested import path for torch_utils. >>>
+# DEFINITIVE FINAL VERSION: Samples all SAC hyperparameters including learning_starts.
 
 import torch.nn as nn
 from stable_baselines3 import PPO, SAC
@@ -8,7 +8,6 @@ import optuna
 from omegaconf import DictConfig
 
 from src.model import MambaFeaturesExtractor, MambaActorCriticPolicy
-# <<< THE FIX IS HERE: Changed from 'src.torch_utils' to 'src.utils.torch_utils' >>>
 from src.utils.torch_utils import get_device
 
 def create_ppo_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> PPO:
@@ -57,6 +56,7 @@ def create_sac_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> SAC:
     gamma = trial.suggest_float("gamma", cfg.optimization.gamma_min, cfg.optimization.gamma_max, log=True)
     tau = trial.suggest_float("tau", cfg.optimization.tau_min, cfg.optimization.tau_max)
     train_freq = trial.suggest_categorical("train_freq", cfg.optimization.train_freq_choices)
+    learning_starts = trial.suggest_categorical("learning_starts", cfg.optimization.learning_starts_choices)
     gradient_steps = train_freq
     
     weight_decay = trial.suggest_float("weight_decay", cfg.optimization.weight_decay_min, cfg.optimization.weight_decay_max)
@@ -86,7 +86,7 @@ def create_sac_model(trial: optuna.Trial, env: VecEnv, cfg: DictConfig) -> SAC:
     sac_params = {
         'learning_rate': lr,
         'buffer_size': buffer_size,
-        'learning_starts': cfg.optimization.learning_starts,
+        'learning_starts': learning_starts,
         'batch_size': batch_size,
         'tau': tau,
         'gamma': gamma,

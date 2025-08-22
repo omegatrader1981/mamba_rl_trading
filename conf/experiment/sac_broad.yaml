@@ -1,8 +1,8 @@
 # @package _global_
+# DEFINITIVE VERSION: Includes gamma, tau, and learning_starts in the HPO.
 
-# HPO settings for Phase 6a, Iteration 2: More Aggressive Reward Shaping
 experiment:
-  name: Phase6a_SAC_Broad_V2
+  name: Phase6a_SAC_Broad_V3
   agent_type: sac
 
 optimization:
@@ -28,7 +28,7 @@ optimization:
   tau_min: 0.005
   tau_max: 0.02
   train_freq_choices: [8, 16, 32]
-  learning_starts: 10000
+  learning_starts_choices: [20000, 30000]
 
   activity_bonus_scale_min: 0.0
   activity_bonus_scale_max: 0.05
