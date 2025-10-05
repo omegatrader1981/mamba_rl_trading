@@ -1,9 +1,16 @@
 # @package _global_
 
+defaults:
+  - override /optimization: disabled  # Or set enabled: false
+
 experiment:
   name: SmokeTest
 
+training:
+  total_timesteps: 10000  # Small number for testing
+
 optimization:
+  enabled: false  # CRITICAL: No HPO in smoke test
   n_trials: 1
   trial_timesteps: 1000
   metric: 'sharpe'
@@ -44,6 +51,12 @@ optimization:
   hurst_window_choices: [50]
   momentum_window_choices: [21]
   volatility_window_choices: [21]
+
+data:
+  # Use minimal data slice
+  regime_definitions:
+    train_trending:
+      - ["2024-01-01", "2024-01-07"]  # Just 1 week
 
 saving:
   output_dir: output_mamba_mnq_SmokeTest
