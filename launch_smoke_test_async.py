@@ -1,72 +1,64 @@
 #!/usr/bin/env python3
+"""
+Launch Smoke Test on SageMaker asynchronously using a custom ECR image.
+
+✅ Safe for Ubuntu
+✅ Uses ml.g4dn.2xlarge (as requested)
+✅ Prints job URL for live monitoring
+"""
+
 import boto3
-import json
-import sys
 import time
-from datetime import datetime
+from sagemaker.processing import ScriptProcessor, ProcessingInput, ProcessingOutput
 
-# === CONFIGURATION ===
-JOB_TYPE = "smoke_test"
-INSTRUMENT = "mnq"
-IMAGE_TAG = "refactor-v1"
-INSTANCE_TYPE = "ml.g4dn.2xlarge"  # Changed from ml.g5.2xlarge (quota-safe)
-ROLE_ARN = "arn:aws:iam::537124950121:role/SageMakerExecutionRole"
+# --- CONFIGURATION ---
+ACCOUNT_ID = "537124950121"
 REGION = "eu-west-2"
+IMAGE_NAME = "mamba_rl_trading"
+IMAGE_TAG = "refactor-v1"
+ROLE_ARN = "arn:aws:iam::537124950121:role/AmazonSageMaker-ExecutionRole-20250221T093632"
+INSTANCE_TYPE = "ml.g4dn.2xlarge"
+INSTANCE_COUNT = 1
+INSTRUMENT = "mnq"
 
-def launch_smoke_test():
-    sagemaker = boto3.client("sagemaker", region_name=REGION)
+ECR_URI = f"{ACCOUNT_ID}.dkr.ecr.{REGION}.amazonaws.com/{IMAGE_NAME}:{IMAGE_TAG}"
+timestamp = time.strftime("%Y%m%d-%H%M%S")
+JOB_NAME = f"mamba-smoke-test-{INSTRUMENT}-{timestamp}".replace("_", "-")
 
-    job_name = f"mamba-{JOB_TYPE}-{INSTRUMENT}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
-    image_uri = f"537124950121.dkr.ecr.{REGION}.amazonaws.com/mamba-rl-trading:{IMAGE_TAG}"
+# --- Initialize client ---
+sm_client = boto3.client("sagemaker", region_name=REGION)
 
-    print(f"🚀 Launching SageMaker Processing Job: {job_name}")
-    print(f"   • Image: {image_uri}")
-    print(f"   • Instance: {INSTANCE_TYPE}")
+# --- Setup processor ---
+processor = ScriptProcessor(
+    image_uri=ECR_URI,
+    role=ROLE_ARN,
+    instance_count=INSTANCE_COUNT,
+    instance_type=INSTANCE_TYPE,
+    command=["python3"],
+)
 
-    try:
-        response = sagemaker.create_processing_job(
-            ProcessingJobName=job_name,
-            RoleArn=ROLE_ARN,
-            ProcessingResources={
-                "ClusterConfig": {
-                    "InstanceCount": 1,
-                    "InstanceType": INSTANCE_TYPE,
-                    "VolumeSizeInGB": 50,
-                }
-            },
-            AppSpecification={"ImageUri": image_uri},
-            Environment={
-                "JOB_TYPE": JOB_TYPE,
-                "INSTRUMENT": INSTRUMENT,
-                "STAGE": "stage0",
-            },
-            ProcessingOutputConfig={
-                "Outputs": [
-                    {"OutputName": "results", "S3Output": {
-                        "S3Uri": f"s3://mamba-rl-jobs/{job_name}/output/",
-                        "LocalPath": "/opt/ml/processing/output",
-                        "S3UploadMode": "EndOfJob"
-                    }}
-                ]
-            },
-            Tags=[{"Key": "Project", "Value": "MambaRL"}],
-        )
+print(f"🚀 Launching SageMaker Processing Job: {JOB_NAME}")
+print(f"   • Image: {ECR_URI}")
+print(f"   • Instance: {INSTANCE_TYPE}")
 
-        print("\n✅ Job successfully launched!")
-        print(f"🔗 Job name: {job_name}")
-        print("⏳ Checking job status after 30 seconds...\n")
-        time.sleep(30)
+try:
+    processor.run(
+        code="launch_smoke_test.py",
+        job_name=JOB_NAME,
+        inputs=[
+            ProcessingInput(source=".", destination="/opt/ml/processing/input/code")
+        ],
+        outputs=[
+            ProcessingOutput(
+                source="/opt/ml/processing/output",
+                destination=f"s3://{ACCOUNT_ID}-sagemaker-smoke-test/output/{JOB_NAME}"
+            )
+        ],
+        wait=False,
+        logs=False,
+    )
+    print(f"\n✅ Job submitted successfully!")
+    print(f"🌐 View logs: https://{REGION}.console.aws.amazon.com/sagemaker/home?region={REGION}#/processing-jobs/{JOB_NAME}")
 
-        status = sagemaker.describe_processing_job(ProcessingJobName=job_name)
-        print(json.dumps({
-            "JobName": job_name,
-            "Status": status["ProcessingJobStatus"],
-            "CreationTime": str(status["CreationTime"])
-        }, indent=2))
-
-    except Exception as e:
-        print(f"❌ Error launching job: {e}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    launch_smoke_test()
+except Exception as e:
+    print(f"\n❌ Error launching job: {e}")
