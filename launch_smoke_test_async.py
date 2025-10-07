@@ -1,41 +1,72 @@
-"""
-launch_smoke_test_async.py
------------------------------------
-Ubuntu-safe launcher for the Mamba RL SageMaker smoke test.
-Submits the Stage 0 training job asynchronously and exits immediately.
-
-This script:
- - Submits the smoke test job to SageMaker
- - Prints the SageMaker console URL for monitoring
- - Exits without hanging (no local blocking)
-"""
-
-import time
+#!/usr/bin/env python3
 import boto3
-import sagemaker
+import json
+import sys
+import time
+from datetime import datetime
 
-sm_client = boto3.client("sagemaker", region_name="eu-west-2")
-job_name = f"smoke-test-{int(time.time())}"
+# === CONFIGURATION ===
+JOB_TYPE = "smoke_test"
+INSTRUMENT = "mnq"
+IMAGE_TAG = "refactor-v1"
+INSTANCE_TYPE = "ml.g4dn.2xlarge"  # Changed from ml.g5.2xlarge (quota-safe)
+ROLE_ARN = "arn:aws:iam::537124950121:role/SageMakerExecutionRole"
+REGION = "eu-west-2"
 
-print(f"🚀 Launching SageMaker Smoke Test job: {job_name}")
+def launch_smoke_test():
+    sagemaker = boto3.client("sagemaker", region_name=REGION)
 
-response = sm_client.create_processing_job(
-    ProcessingJobName=job_name,
-    RoleArn="arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20240422T194915",
-    AppSpecification={
-        "ImageUri": "537124950121.dkr.ecr.eu-west-2.amazonaws.com/mamba-rl-trading:refactor-v1"
-    },
-    ProcessingResources={
-        "ClusterConfig": {
-            "InstanceCount": 1,
-            "InstanceType": "ml.g5.2xlarge",
-            "VolumeSizeInGB": 50
-        }
-    },
-    StoppingCondition={"MaxRuntimeInSeconds": 3600},
-    Tags=[{"Key": "Project", "Value": "MambaRL-SmokeTest"}],
-)
+    job_name = f"mamba-{JOB_TYPE}-{INSTRUMENT}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+    image_uri = f"537124950121.dkr.ecr.{REGION}.amazonaws.com/mamba-rl-trading:{IMAGE_TAG}"
 
-print(f"✅ Smoke test job submitted successfully: {job_name}")
-print(f"🔗 View progress here:")
-print(f"https://eu-west-2.console.aws.amazon.com/sagemaker/home?region=eu-west-2#/processing-jobs/{job_name}")
+    print(f"🚀 Launching SageMaker Processing Job: {job_name}")
+    print(f"   • Image: {image_uri}")
+    print(f"   • Instance: {INSTANCE_TYPE}")
+
+    try:
+        response = sagemaker.create_processing_job(
+            ProcessingJobName=job_name,
+            RoleArn=ROLE_ARN,
+            ProcessingResources={
+                "ClusterConfig": {
+                    "InstanceCount": 1,
+                    "InstanceType": INSTANCE_TYPE,
+                    "VolumeSizeInGB": 50,
+                }
+            },
+            AppSpecification={"ImageUri": image_uri},
+            Environment={
+                "JOB_TYPE": JOB_TYPE,
+                "INSTRUMENT": INSTRUMENT,
+                "STAGE": "stage0",
+            },
+            ProcessingOutputConfig={
+                "Outputs": [
+                    {"OutputName": "results", "S3Output": {
+                        "S3Uri": f"s3://mamba-rl-jobs/{job_name}/output/",
+                        "LocalPath": "/opt/ml/processing/output",
+                        "S3UploadMode": "EndOfJob"
+                    }}
+                ]
+            },
+            Tags=[{"Key": "Project", "Value": "MambaRL"}],
+        )
+
+        print("\n✅ Job successfully launched!")
+        print(f"🔗 Job name: {job_name}")
+        print("⏳ Checking job status after 30 seconds...\n")
+        time.sleep(30)
+
+        status = sagemaker.describe_processing_job(ProcessingJobName=job_name)
+        print(json.dumps({
+            "JobName": job_name,
+            "Status": status["ProcessingJobStatus"],
+            "CreationTime": str(status["CreationTime"])
+        }, indent=2))
+
+    except Exception as e:
+        print(f"❌ Error launching job: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    launch_smoke_test()
