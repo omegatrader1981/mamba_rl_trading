@@ -95,12 +95,9 @@ training_job_config = {
         "InstanceCount": INSTANCE_COUNT,
         "VolumeSizeInGB": VOLUME_SIZE_GB,
     },
-    # ✅ CORRECT: MaxRuntime in StoppingCondition
     "StoppingCondition": {
-        "MaxRuntimeInSeconds": 3600  # 1 hour
+        "MaxRuntimeInSeconds": 3600  # 1 hour — sufficient for smoke test
     },
-    # ✅ CORRECT: MaxWaitTime at top level (for Spot)
-    "MaxWaitTimeInSeconds": 7200,  # 2 hours (must be >= MaxRuntime)
     "HyperParameters": {
         "experiment": "smoke_test",
         "instrument": "mnq",
@@ -109,7 +106,7 @@ training_job_config = {
         "HYDRA_FULL_ERROR": "1",
         "MAMBA_FORCE_BUILD": "1",
     },
-    "EnableManagedSpotTraining": True,
+    "EnableManagedSpotTraining": True,  # ✅ Enables Spot; no MaxWaitTime needed
     "CheckpointConfig": {
         "S3Uri": checkpoint_uri,
         "LocalPath": "/opt/ml/checkpoints",
