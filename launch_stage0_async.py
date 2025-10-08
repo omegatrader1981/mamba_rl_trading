@@ -95,7 +95,12 @@ training_job_config = {
         "InstanceCount": INSTANCE_COUNT,
         "VolumeSizeInGB": VOLUME_SIZE_GB,
     },
-    "StoppingCondition": {"MaxRuntimeInSeconds": 10800},
+    # ✅ CORRECT: MaxRuntime in StoppingCondition
+    "StoppingCondition": {
+        "MaxRuntimeInSeconds": 3600  # 1 hour
+    },
+    # ✅ CORRECT: MaxWaitTime at top level (for Spot)
+    "MaxWaitTimeInSeconds": 7200,  # 2 hours (must be >= MaxRuntime)
     "HyperParameters": {
         "experiment": "smoke_test",
         "instrument": "mnq",
