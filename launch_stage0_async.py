@@ -15,8 +15,7 @@ ACCOUNT_ID = "537124950121"
 REGION = "eu-west-2"
 IMAGE_NAME = "mamba_rl_trading"
 IMAGE_TAG = "refactor-v1"
-# The full ARN, including the /service-role/ path, is required for roles
-# created via the SageMaker console.
+# The full ARN, including the /service-role/ path, is required.
 ROLE_ARN = "arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20250221T093632"
 
 # Use g4dn.xlarge instance (you have quota for this)
@@ -97,14 +96,9 @@ training_job_config = {
         "InstanceCount": INSTANCE_COUNT,
         "VolumeSizeInGB": VOLUME_SIZE_GB,
     },
-    # 🔻 --- FIX --- 🔻
-    # MaxWaitTimeInSeconds is NOT a valid parameter for the low-level
-    # boto3 create_training_job call. It is only used by the high-level
-    # SageMaker Python SDK Estimator object.
     "StoppingCondition": {
-        "MaxRuntimeInSeconds": 3600  # 1 hour — sufficient for smoke test
+        "MaxRuntimeInSeconds": 3600
     },
-    # 🔺 --- END FIX --- 🔺
     "HyperParameters": {
         "experiment": "smoke_test",
         "instrument": "mnq",
@@ -113,7 +107,12 @@ training_job_config = {
         "HYDRA_FULL_ERROR": "1",
         "MAMBA_FORCE_BUILD": "1",
     },
-    "EnableManagedSpotTraining": True,
+    # 🔻 --- FIX --- 🔻
+    # The low-level boto3 client API has an incompatibility with the spot training
+    # parameters. Disabling spot training is the most reliable way to submit
+    # the job using this client. For spot, use the SageMaker Python SDK instead.
+    "EnableManagedSpotTraining": False,
+    # 🔺 --- END FIX --- 🔺
     "CheckpointConfig": {
         "S3Uri": checkpoint_uri,
         "LocalPath": "/opt/ml/checkpoints",
@@ -141,7 +140,7 @@ try:
     print(f"  aws logs tail /aws/sagemaker/TrainingJobs --follow --log-stream-name-prefix {JOB_NAME} --region {REGION}")
     print(f"\nValidate results (after completion):")
     print(f"  python validate_smoke_test.py {JOB_NAME}\n")
-    print("Expected runtime: 15–30 min | Est. cost: ~$0.20 (spot)\n")
+    print("Expected runtime: 15–30 min | Est. cost: ~$0.54 (on-demand)\n")
 
     with open(".last_smoke_test_job", "w") as f:
         f.write(JOB_NAME)
