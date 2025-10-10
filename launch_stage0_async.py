@@ -15,7 +15,9 @@ ACCOUNT_ID = "537124950121"
 REGION = "eu-west-2"
 IMAGE_NAME = "mamba_rl_trading"
 IMAGE_TAG = "refactor-v1"
-ROLE_ARN = "arn:aws:iam::537124950121:role/AmazonSageMaker-ExecutionRole-20250221T093632"
+# The full ARN, including the /service-role/ path, is required for roles
+# created via the SageMaker console.
+ROLE_ARN = "arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20250221T093632"
 
 # Use g4dn.xlarge instance (you have quota for this)
 INSTANCE_TYPE = "ml.g4dn.xlarge"
@@ -95,12 +97,14 @@ training_job_config = {
         "InstanceCount": INSTANCE_COUNT,
         "VolumeSizeInGB": VOLUME_SIZE_GB,
     },
+    # 🔻 --- FIX --- 🔻
+    # MaxWaitTimeInSeconds is NOT a valid parameter for the low-level
+    # boto3 create_training_job call. It is only used by the high-level
+    # SageMaker Python SDK Estimator object.
     "StoppingCondition": {
-        "MaxRuntimeInSeconds": 3600,  # 1 hour — sufficient for smoke test
-        # 🔻 --- FIX --- 🔻
-        # MaxWaitTimeInSeconds is REQUIRED for spot training and must be >= MaxRuntimeInSeconds
-        "MaxWaitTimeInSeconds": 3600
+        "MaxRuntimeInSeconds": 3600  # 1 hour — sufficient for smoke test
     },
+    # 🔺 --- END FIX --- 🔺
     "HyperParameters": {
         "experiment": "smoke_test",
         "instrument": "mnq",
@@ -109,8 +113,7 @@ training_job_config = {
         "HYDRA_FULL_ERROR": "1",
         "MAMBA_FORCE_BUILD": "1",
     },
-    # 🔺 --- FIX was in StoppingCondition above --- 🔺
-    "EnableManagedSpotTraining": True,  # ✅ Enables Spot; MaxWaitTimeInSeconds is required
+    "EnableManagedSpotTraining": True,
     "CheckpointConfig": {
         "S3Uri": checkpoint_uri,
         "LocalPath": "/opt/ml/checkpoints",
