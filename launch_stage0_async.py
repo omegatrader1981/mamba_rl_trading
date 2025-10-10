@@ -17,16 +17,19 @@ log = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
 ACCOUNT_ID = "537124950121"
-REGION = "eu-west-2"
+# 🚨 FIXED: Use eu-west-1 to match your data bucket region
+REGION = "eu-west-1"
 IMAGE_NAME = "mamba_rl_trading"
 IMAGE_TAG = "refactor-v1"
+# 🚨 FIXED: Ensure this role has S3 read access to mambabot-eu-west-1
 ROLE_ARN = "arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20250221T093632"
 
 INSTANCE_TYPE = "ml.g4dn.xlarge"
 INSTANCE_COUNT = 1
 VOLUME_SIZE_GB = 30
 
-BUCKET_NAME = f"sagemaker-{REGION}-{ACCOUNT_ID}"
+# 🚨 FIXED: Use your actual data bucket
+BUCKET_NAME = "mambabot-eu-west-1"
 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 JOB_NAME = f"mamba-mnq-smoketest-{timestamp}".replace("_", "-")
 
@@ -38,34 +41,21 @@ log.info(f"Instance: {INSTANCE_TYPE} (Spot)")
 log.info(f"Region: {REGION}")
 log.info("")
 
-# Initialize SageMaker session
-sess = sagemaker.Session()
+# Initialize SageMaker session in the correct region
+sess = sagemaker.Session(boto_session=boto3.Session(region_name=REGION))
 s3_client = boto3.client("s3", region_name=REGION)
 
-# Ensure S3 bucket exists
+# Verify data bucket exists (no need to create it)
 try:
     s3_client.head_bucket(Bucket=BUCKET_NAME)
-    log.info(f"✅ S3 bucket exists: {BUCKET_NAME}")
-except Exception:
-    log.info(f"Creating S3 bucket: {BUCKET_NAME}")
-    s3_client.create_bucket(
-        Bucket=BUCKET_NAME,
-        CreateBucketConfiguration={"LocationConstraint": REGION},
-    )
+    log.info(f"✅ Data bucket exists: {BUCKET_NAME}")
+except Exception as e:
+    log.error(f"❌ Data bucket not found: {BUCKET_NAME}")
+    log.error("Please ensure your MNQ data is in this bucket.")
+    exit(1)
 
-# Upload data (if available)
-log.info("\nUploading data files to S3 (if any)...")
-data_prefix = "mamba-rl-trading/data"
-data_dir = Path("data")
-if data_dir.exists():
-    for csv_file in data_dir.glob("*.csv"):
-        s3_key = f"{data_prefix}/{csv_file.name}"
-        log.info(f"  Uploading {csv_file.name}...")
-        s3_client.upload_file(str(csv_file), BUCKET_NAME, s3_key)
-    log.info("✅ Data upload complete")
-else:
-    log.info("⚠️  Warning: No data directory found (skipping upload)")
-
+# 🚨 FIXED: Point to your actual data location
+data_prefix = "databento_mnq_downloads/databento_mnq_downloads_5min_2020_2024"
 data_input_uri = f"s3://{BUCKET_NAME}/{data_prefix}"
 
 # Create PyTorch estimator (uses SageMaker SDK — full Spot support)
@@ -132,7 +122,7 @@ except Exception as e:
     log.info("=" * 70)
     log.info(f"\nError: {e}\n")
     log.info("🔍 Troubleshooting:")
-    log.info(f"1. Check ECR image: aws ecr describe-images --repository-name {IMAGE_NAME} --region {REGION}")
-    log.info(f"2. Check IAM role ARN includes /service-role/")
-    log.info(f"3. Confirm Spot quota for ml.g4dn.xlarge is approved")
+    log.info(f"1. Confirm role {ROLE_ARN} has s3:GetObject on {BUCKET_NAME}")
+    log.info(f"2. Verify data exists at: {data_input_uri}")
+    log.info(f"3. Ensure Spot quota for ml.g4dn.xlarge in {REGION}")
     exit(1)
