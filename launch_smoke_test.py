@@ -39,18 +39,9 @@ def prepare_sagemaker_session():
     role = "arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20250221T093632"
     return sess, role
 
-def upload_data_to_s3(sess: sagemaker.Session, data_dir: str = "data") -> str:
-    """Upload training data to S3."""
-    bucket = sess.default_bucket()
-    prefix = "mamba-rl-trading/data"
-    
-    log.info(f"Uploading data to s3://{bucket}/{prefix}")
-    data_uri = sess.upload_data(
-        path=data_dir,
-        bucket=bucket,
-        key_prefix=prefix
-    )
-    return data_uri
+def get_existing_data_uri() -> str:
+    """Return the S3 URI of your pre-uploaded MNQ data."""
+    return "s3://mambabot-eu-west-1/databento_mnq_downloads/databento_mnq_downloads_5min_2020_2024"
 
 def launch_smoke_test(
     sess: sagemaker.Session,
@@ -120,8 +111,9 @@ def main():
     # Setup SageMaker
     sess, role = prepare_sagemaker_session()
     
-    # Upload data
-    data_uri = upload_data_to_s3(sess)
+    # Use existing S3 data — no local upload
+    data_uri = get_existing_data_uri()
+    log.info(f"Using existing data from: {data_uri}")
     
     # Launch smoke test
     estimator = launch_smoke_test(
