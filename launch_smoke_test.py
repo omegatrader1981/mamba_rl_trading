@@ -2,14 +2,6 @@
 """
 Stage 0: Repository Baseline Smoke Test Launcher
 Validates the entire codebase runs without errors on SageMaker.
-
-Success Criteria:
-- Pipeline completes without exceptions
-- Training runs for 10,000 steps
-- Evaluation produces metrics
-- All artifacts are saved correctly
-
-Expected Runtime: 15-25 minutes on ml.g4dn.xlarge
 """
 
 # 🔥 Disable telemetry BEFORE any sagemaker imports
@@ -44,7 +36,6 @@ def prepare_sagemaker_session():
     return sess, ROLE_ARN
 
 def get_data_uri() -> str:
-    # ✅ Now points to data in eu-west-2 (after you run the aws s3 sync above)
     bucket = f"sagemaker-{AWS_REGION}-{ACCOUNT_ID}"
     return f"s3://{bucket}/mamba-rl-trading/data"
 
@@ -64,6 +55,11 @@ def launch_smoke_test(sess, role, data_uri, config):
         volume_size=config['volume_size_gb'],
         use_spot_instances=config['use_spot'],
         max_run=config['max_run_seconds'],
+        # 🔻 --- THE FIX --- 🔻
+        # This parameter is REQUIRED by the SDK for spot instances.
+        # Its absence was causing the script to hang indefinitely.
+        max_wait=config['max_wait_seconds'],
+        # 🔺 --- END FIX --- 🔺
         framework_version='2.0.0',
         py_version='py310',
         image_uri=f"{ACCOUNT_ID}.dkr.ecr.{AWS_REGION}.amazonaws.com/mamba_rl_trading:refactor-v1",
