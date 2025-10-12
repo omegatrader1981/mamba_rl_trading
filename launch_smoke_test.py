@@ -33,9 +33,10 @@ def load_launch_config(config_path: str = "launch_configs.yaml") -> dict:
     return configs['smoke_test']
 
 def prepare_sagemaker_session():
-    """Initialize SageMaker session and get execution role."""
+    """Initialize SageMaker session and return hardcoded execution role ARN."""
     sess = sagemaker.Session()
-    role = sagemaker.get_execution_role()
+    # ✅ Hardcoded ARN — required when running locally as an IAM user
+    role = "arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20250221T093632"
     return sess, role
 
 def upload_data_to_s3(sess: sagemaker.Session, data_dir: str = "data") -> str:
