@@ -1,14 +1,15 @@
 # launch_configs.yaml
-# DEFINITIVE FINAL VERSION: Reverts to a single, high-availability instance type.
+# DEFINITIVE FINAL VERSION: Unified, region-aware, smoke-test ready
 
 smoke_test:
   instance_type: "ml.g4dn.xlarge"
   instance_count: 1
   volume_size_gb: 30
   use_spot: true
-  max_run_seconds: 10800
-  base_job_name_prefix: "mamba-{{instrument}}-smoke-test"
-  hydra_experiment: "smoke_test"
+  max_run_seconds: 3600        # 1 hour — true smoke test
+  region: eu-west-1            # ✅ Matches your data bucket
+  base_job_name_prefix: "mamba-{{instrument}}-smoke-hpo"
+  hydra_experiment: "sac_broad_smoke"  # Minimal HPO config
 
 phase5b_refine_hpo:
   instance_type: "ml.g4dn.2xlarge"
@@ -16,18 +17,18 @@ phase5b_refine_hpo:
   volume_size_gb: 80
   use_spot: true
   max_run_seconds: 86400
+  region: eu-west-1
   base_job_name_prefix: "mamba-{{instrument}}-p5b-refine"
   hydra_experiment: "refine"
 
 phase6a_sac_broad:
-  # <<< THE FIX IS HERE: Revert to a single, reliable instance type >>>
   instance_type: "ml.g4dn.2xlarge"
   instance_count: 1
   volume_size_gb: 100
   use_spot: true
   max_run_seconds: 172800
   max_wait_seconds: 259200
-  region: eu-west-1
+  region: eu-west-1            # ✅ Critical for data access
   checkpoint_s3_uri: "s3://mambabot-eu-west-1/checkpoints/mnq/Phase6a_SAC_Broad_V2"
   base_job_name_prefix: "mamba-{{instrument}}-p6a-sac-broad"
   hydra_experiment: "sac_broad"
@@ -38,5 +39,6 @@ final_training:
   volume_size_gb: 80
   use_spot: true
   max_run_seconds: 86400
+  region: eu-west-1
   base_job_name_prefix: "mamba-{{instrument}}-final-train"
   hydra_experiment: "final_train"
