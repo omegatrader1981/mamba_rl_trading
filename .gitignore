@@ -19,12 +19,6 @@ outputs/
 multirun/
 output_*/
 job_artifacts/
-baseline_analysis_report/
-pure_momentum_report/
-hmm_filtered_momentum_report/
-regime_filtered_momentum_report/
-analysis_results/
-ppo_champion_results/
 
 # IDE and OS-specific files
 .vscode/

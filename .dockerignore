@@ -1,43 +1,41 @@
-# === Python ===
+# Docker build context
+Dockerfile
+.dockerignore
+
+# Python virtual environments
+venv/
+launcher_venv/
+sagemaker_env/
+.venv/
+
+# Git repository
+.git/
+
+# Python caches and artifacts
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-pip-log.txt
 .pytest_cache/
+build/
+dist/
+*.egg-info/
 
-# === Virtual environments ===
-venv/
-launcher_venv/
-
-# === IDE & Editors ===
-.idea/
-.vscode/
-*.swp
-.DS_Store
-
-# === Git ===
-.git/
-.gitignore
-
-# === Logs, Databases, Temp Files ===
-*.db
-*.log
-
-# === Local Outputs (CRITICAL) ===
-output_*/
+# Local data and outputs (should be on S3)
+data/
+outputs/
 multirun/
-baseline_analysis_report/
-pure_momentum_report/
-hmm_filtered_momentum_report/
-regime_filtered_momentum_report/
+output_*/
 job_artifacts/
-analysis_results/
-ppo_champion_results/
-dlc_requirements.txt
 
-# === CI/CD & Docs (not needed in image) ===
-README.md
-LICENSE
-docker/
-buildspec.yml
+# IDE and OS-specific files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Local configuration files
+.env
+
+# Logs and previous artifacts
+*.log
+*.tar.gz
