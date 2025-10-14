@@ -1,9 +1,0 @@
-# requirements-launcher.txt
-# A minimal set of dependencies for launching SageMaker jobs.
-# Does NOT include heavy ML libraries.
-
-sagemaker>=2.200
-boto3>=1.34
-PyYAML>=6.0
-omegaconf>=2.3.0
-hydra-core>=1.3.0
