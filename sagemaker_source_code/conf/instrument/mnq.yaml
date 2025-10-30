@@ -1,0 +1,36 @@
+# @package _global_
+
+# Instrument-specific parameters for MNQ.
+# This file is designed to be merged with the main config.yaml.
+
+# Add this for interpolations like ${instrument.symbol}
+instrument:
+  symbol: mnq
+
+data:
+  symbol: MNQ
+  timeframe_tag: "5min"
+  data_filenames:
+    - "MNQ_ohlcv5m_2020Q1.csv"
+    - "MNQ_ohlcv5m_2020Q2.csv"
+    - "MNQ_ohlcv5m_2020Q3.csv"
+    - "MNQ_ohlcv5m_2020Q4.csv"
+    - "MNQ_ohlcv5m_2021Q1.csv"
+    - "MNQ_ohlcv5m_2021Q2.csv"
+    - "MNQ_ohlcv5m_2021Q3.csv"
+    - "MNQ_ohlcv5m_2021Q4.csv"
+    - "MNQ_ohlcv5m_2022Q1.csv"
+    - "MNQ_ohlcv5m_2022Q2.csv"
+    - "MNQ_ohlcv5m_2023Q1.csv"
+    - "MNQ_ohlcv5m_2023Q2.csv"
+    - "MNQ_ohlcv5m_2023Q3.csv"
+    - "MNQ_ohlcv5m_2023Q4.csv"
+    - "MNQ_ohlcv5m_2024Q1.csv"
+    - "MNQ_ohlcv5m_2024Q2.csv"
+    - "MNQ_ohlcv5m_2024Q3.csv"
+    - "MNQ_ohlcv5m_2024Q4.csv"
+
+environment:
+  point_value: 0.20 
+  tick_size: 0.25   
+  commission_per_contract: 0.04

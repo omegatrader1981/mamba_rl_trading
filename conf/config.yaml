@@ -1,162 +1,98 @@
-# @package _global_
-# DEFINITIVE FINAL VERSION: Includes the complete, refined SAC HPO schema.
-
+# Base configuration file
 defaults:
-  - _self_
-  - instrument: mnq
-  - experiment: sac_broad
-  - override hydra/job_logging: default
+  - experiment: smoke_test
+  - optimization: default
+  - _self_  # Load this file LAST so interpolations succeed
 
-debug_autograd_anomaly: false
-use_mamba_nan_callback: true
-mamba_nan_callback_freq: 500
+# Add a fallback structure for 'experiment'
+experiment:
+  name: "DefaultExperiment"
+  description: "Base experiment fallback"
 
+# Instrument selection
+instrument: mnq
+
+# Data configuration
 data:
-  data_dir: "/opt/ml/input/data/training"
-  sagemaker_channel_name: training
-  use_regime_splicing: true
+  train_start: "2020-01-01"
+  train_end: "2021-12-31"
+  val_start: "2022-01-01"
+  val_end: "2022-12-31"
+  test_start: "2023-01-01"
+  test_end: "2024-12-31"
   regime_definitions:
-    train_High_Vol_Crash: [['2020-02-15', '2020-04-30']]
-    train_Bull_Market:    [['2020-06-01', '2020-09-30']]
-    train_Bear_Market:    [['2022-04-01', '2022-07-31']]
-    train_Sideways_Chop:  [['2023-07-01', '2023-10-31']]
-    train_Low_Vol_Grind:  [['2021-10-01', '2021-12-31']]
-    validation_set:       [['2023-01-01', '2023-06-30']]
-    test_set:             [['2024-01-01', '2024-12-31']]
-  cleaning:
-    min_allowable_price: 0.01
-    outlier_rolling_window: 21 
-    outlier_median_dev_threshold: 0.20
+    train_High_Vol_Crash:
+      - ["2020-02-15", "2020-04-30"]
+    train_Bull_Market:
+      - ["2020-06-01", "2020-09-30"]
+    train_Bear_Market:
+      - ["2022-04-01", "2022-07-31"]
+    train_Sideways_Chop:
+      - ["2023-07-01", "2023-10-31"]
+    train_Low_Vol_Grind:
+      - ["2021-10-01", "2021-12-31"]
+    val_2022_Q1:
+      - ["2022-01-01", "2022-03-31"]
+    val_2022_Q4:
+      - ["2022-10-01", "2022-12-31"]
+    test_2023_full:
+      - ["2023-01-01", "2023-12-31"]
+    test_2024_Q1:
+      - ["2024-01-01", "2024-03-31"]
+    test_2024_full:
+      - ["2024-01-01", "2024-12-31"]
 
-features:
-  hurst_window: 151
-  momentum_window: 48
-  volatility_window: 12
-  z_score_window: 60
-  pct_change_cap: 0.05 
-  hl_pct_cap: 0.05     
-  hmm_n_components: 2
-  hmm_min_samples: 500
+# Environment configuration
+env:
+  lookback_window: 20
+  features:
+    - "returns"
+    - "log_returns"
+    - "volatility"
+    - "hurst_exponent"
+    - "session_vwap_distance"
+    - "risk_adjusted_momentum"
+    - "hour_sin"
+    - "hour_cos"
+    - "day_of_week_sin"
+    - "day_of_week_cos"
+    - "hmm_regime"
 
-environment:
-  env_id: FuturesTradingEnv-v0
-  max_episode_steps: 4096
-  initial_balance: 50000.0
-  add_bid_ask_spread: true      
-  spread_ticks_min: 1           
-  spread_ticks_max: 2           
-  max_slippage_points: 0.25
-  max_consecutive_holds_limit: 900
-  lookback_window: 252
-  reward_scheme: 'sac_shaped'
-  action_threshold: 0.5
-  activity_bonus_scale: 0.01
-  hold_penalty_scale: 0.001
-  win_bonus_scale: 0.5
-  loss_penalty_scale: 1.0
-  unrealized_loss_penalty_scale: 0.0
-
+# Model configuration
 model:
-  net_arch_pi_vf_options: [[64, 64], [128, 128]] 
-  mlp_activation_fn_name: 'relu' 
-  mamba_activation_fn_name: 'silu' 
-  mamba_extractor_validation: {input_nan_inf_replacement: 0.0, input_clipping_value: 10.0} 
-  mamba_d_conv_default: 2
-  mamba_expand_default: 2
+  policy_type: "MlpPolicy"
+  policy_kwargs:
+    net_arch:
+      pi: [256, 256]
+      vf: [256, 256]
+    activation_fn: "tanh"
 
-checkpointing:
-  enabled: true
-  save_freq: 10000
-  s3_base_path: "/opt/ml/checkpoints"
-
-optimization:
-  n_trials: 50
-  metric: 'sharpe'
-  direction: 'maximize'
-  pruning: 
-    enabled: true
-    n_startup_trials: 10
-    n_warmup_steps: 5
-    interval_steps: 2
-  n_jobs: 1
-  trial_timesteps: 75000
-  ppo_n_steps_choices_hpo: [256, 512]
-  gae_lambda_min: 0.9
-  gae_lambda_max: 0.98
-  ent_coef_min: 0.0
-  ent_coef_max: 0.01
-  vf_coef_min: 0.5
-  vf_coef_max: 0.6
-  max_grad_norm_min: 0.5
-  max_grad_norm_max: 5.0
-  clip_range_min: 0.1
-  clip_range_max: 0.3
-  buffer_size_choices: [100000, 200000]
-  tau_min: 0.005
-  tau_max: 0.02
-  train_freq_choices: [8, 16, 32]
-  learning_starts_choices: [20000, 30000]
-  activity_bonus_scale_min: 0.0
-  activity_bonus_scale_max: 0.05
-  hold_penalty_scale_min: 0.0
-  hold_penalty_scale_max: 0.01
-  win_bonus_scale_min: 0.1
-  win_bonus_scale_max: 1.0
-  loss_penalty_scale_min: 0.5
-  loss_penalty_scale_max: 2.0
-  unrealized_loss_penalty_scale_min: 0.0
-  unrealized_loss_penalty_scale_max: 0.1
-  lr_min: 1e-6
-  lr_max: 1e-5
-  batch_size_choices: [32, 64, 128, 256, 512]
-  gamma_min: 0.98
-  gamma_max: 0.999
-  weight_decay_min: 0.0
-  weight_decay_max: 1e-3
-  mamba_layers_min: 1
-  mamba_layers_max: 4
-  mamba_d_model_choices: [64, 128]
-  mamba_d_state_choices: [8, 16, 32]
-  features_dim_choices: [128, 256]
-  dropout_min: 0.0
-  dropout_max: 0.2
-  hurst_window_choices: [50, 100, 150]
-  momentum_window_choices: [10, 21, 42, 48]
-  volatility_window_choices: [10, 12, 21, 42]
-
+# Training configuration
 training:
-  total_timesteps: 1000000 
-  use_vec_normalize: true 
-  ppo_n_epochs: 10
-  n_envs_final_train: 1
-  use_subproc_vec_env: false
+  total_timesteps: 1000000
+  n_eval_episodes: 10
+  eval_freq: 50000
+  save_freq: 100000
+  verbose: 1
 
-evaluation:
-  deterministic_actions: true 
+# Optimization configuration (will be overridden by optimization configs)
+optimization:
+  enabled: true
+  n_trials: 50
+  timeout: 7200
+  n_jobs: 1
 
+# Saving configuration
 saving:
-  output_dir: /opt/ml/output/data
-  scaler_filename: ${instrument.symbol}_scaler.joblib
-  optuna_study_name: ${instrument.symbol}_Opt_${experiment.name}
-  optuna_db_name: /opt/ml/checkpoints/${instrument.symbol}_${experiment.name}_study.db
-  best_params_filename: ${instrument.symbol}_best_params.joblib 
-  final_model_filename: ${instrument.symbol}_final_model.zip 
-  vec_normalize_filename: ${instrument.symbol}_vecnormalize_final.pkl
-  trades_filename: test_trades.csv
-  equity_filename: test_equity.csv
-  report_filename: ${instrument.symbol}_report.html
-  optuna_history_plot: optuna_history.png 
-  optuna_importance_plot: optuna_importance.png 
-  equity_curve_plot: equity_curve.png
-  positions_plot: positions_plot.png
-  log_filename: mamba_rl_trading.log
-  checkpoint_dir_name: 'checkpoints'
-
-device: auto 
-
-hydra:
-  run:
-    dir: /opt/ml/output/data/hydra-runs/${now:%Y-%m-%d_%H-%M-%S}
-  sweep:
-    dir: /opt/ml/output/data/hydra-multirun/${now:%Y-%m-%d_%H-%M-%S}
-    subdir: ${hydra.job.num}
+  output_dir: output_mamba_mnq_${experiment.name}
+  scaler_filename: mnq_scaler_${experiment.name}.joblib
+  optuna_study_name: mnq_Opt_${experiment.name}
+  optuna_db_name: optuna_study_mnq_${experiment.name}.db
+  best_params_filename: mnq_best_params_${experiment.name}.joblib
+  final_model_filename: mnq_final_model_${experiment.name}.zip
+  vec_normalize_filename: mnq_vecnormalize_final_${experiment.name}.pkl
+  trades_filename: test_trades_${experiment.name}.csv
+  equity_filename: test_equity_${experiment.name}.csv
+  report_filename: mnq_report_${experiment.name}.html
+  log_filename: mamba_rl_trading_${experiment.name}.log
+  checkpoint_dir_name: checkpoints_${experiment.name}

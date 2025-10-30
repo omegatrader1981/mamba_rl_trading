@@ -1,4 +1,4 @@
-# <<< DEFINITIVE FINAL VERSION: Fully instrumented for robust SageMaker execution. >>>
+# <<< DEFINITIVE FINAL VERSION: With correct HPO guard clause. >>>
 
 import pandas as pd
 import logging
@@ -11,7 +11,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback
 from typing import List
 
-from src.optimize import run_optimization
+# Note: run_optimization is now imported conditionally inside the function
 from src.evaluation import evaluate_agent
 from src.optimize.model_builder import create_ppo_model, create_sac_model
 from src.environment import FuturesTradingEnv
@@ -32,12 +32,14 @@ def train_and_evaluate_model(
     
     log.info("--- Starting Model Training & Evaluation Pipeline (Resilient & Validated) ---")
     
-    checkpoint_dir = cfg.checkpointing.s3_base_path
+    checkpoint_dir = cfg.get("checkpointing", {}).get("s3_base_path", "/opt/ml/checkpoints")
     sagemaker_model_dir = "/opt/ml/model"
     sagemaker_output_dir = cfg.saving.output_dir
 
-    # --- Hyperparameter Optimization (HPO) or Skip for Smoke Test ---
-    if cfg.optimization.enabled:
+    # --- 🔻 THE FINAL FIX: Correctly skip HPO based on your diagnosis ---
+    if cfg.optimization.get("enabled", False):
+        log.info("🚀 Optimization is ENABLED. Starting HPO...")
+        from src.optimize.hpo_runner import run_optimization # Import only when needed
         study, best_params = run_optimization(cfg, df_train_s, df_val_s)
         if not best_params:
             raise RuntimeError("Hyperparameter optimization failed to produce best parameters.")
@@ -45,9 +47,9 @@ def train_and_evaluate_model(
         joblib.dump(best_params, best_params_path)
         log.info(f"Best HPO parameters saved to {best_params_path}")
     else:
-        # Smoke test or HPO disabled: use config defaults
         best_params = None
-        log.info("HPO disabled (smoke test mode). Using default hyperparameters from config.")
+        log.info("⏩ Optimization is DISABLED (smoke test mode). Using default hyperparameters from config.")
+    # --- 🔺 END OF FIX ---
 
     log.info("Preparing for final model training...")
     df_train_val_s = pd.concat([df_train_s, df_val_s]).sort_index()
@@ -67,7 +69,7 @@ def train_and_evaluate_model(
     final_env = DummyVecEnv([lambda: FuturesTradingEnv(df_train_val_s, feature_cols, final_full_cfg)])
 
     latest_checkpoint = None
-    if cfg.checkpointing.enabled and os.path.exists(checkpoint_dir):
+    if cfg.get("checkpointing", {}).get("enabled", False) and os.path.exists(checkpoint_dir):
         checkpoint_files = glob.glob(os.path.join(checkpoint_dir, "final_model_*.zip"))
         if checkpoint_files:
             latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
@@ -99,7 +101,7 @@ def train_and_evaluate_model(
                 final_model = create_ppo_model(None, final_env, final_full_cfg)
         
     callbacks = []
-    if cfg.checkpointing.enabled:
+    if cfg.get("checkpointing", {}).get("enabled", False):
         checkpoint_callback = CheckpointCallback(
             save_freq=cfg.checkpointing.save_freq,
             save_path=checkpoint_dir,
@@ -108,7 +110,9 @@ def train_and_evaluate_model(
         callbacks.append(checkpoint_callback)
 
     log.info(f"Starting/resuming final training for {final_full_cfg.training.total_timesteps} timesteps...")
-    remaining_timesteps = final_full_cfg.training.total_timesteps - final_model.num_timesteps
+    # Ensure num_timesteps exists, default to 0 if model is new
+    start_timesteps = getattr(final_model, 'num_timesteps', 0)
+    remaining_timesteps = final_full_cfg.training.total_timesteps - start_timesteps
     if remaining_timesteps > 0:
         final_model.learn(
             total_timesteps=remaining_timesteps,

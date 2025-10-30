@@ -1,77 +1,17 @@
-# @package _global_
-
+# This file now ONLY contains overrides for the smoke test.
 defaults:
-  - override /optimization: disabled  # Or set enabled: false
+  - override /optimization: disabled
 
 experiment:
   name: SmokeTest
 
 training:
-  total_timesteps: 10000  # Small number for testing
+  total_timesteps: 10000
 
 optimization:
-  enabled: false  # CRITICAL: No HPO in smoke test
-  n_trials: 1
-  trial_timesteps: 1000
-  metric: 'sharpe'
-  direction: 'maximize'
-  pruning: 
-    enabled: false
-
-  lr_min: 1e-6
-  lr_max: 3e-6
-  ppo_n_steps_choices_hpo: [512]
-  batch_size_choices: [32]
-  gamma_min: 0.99
-  gamma_max: 0.99
-  gae_lambda_min: 0.95
-  gae_lambda_max: 0.95
-  ent_coef_min: 0.01
-  ent_coef_max: 0.01
-  vf_coef_min: 0.5
-  vf_coef_max: 0.5
-  max_grad_norm_min: 1.0
-  max_grad_norm_max: 1.0
-  clip_range_min: 0.2
-  clip_range_max: 0.2
-  weight_decay_min: 1e-4
-  weight_decay_max: 1e-4
-  activity_reward_scale_min: 0.05
-  activity_reward_scale_max: 0.05
-  
-  # <<< THE FIX IS HERE: Using the code-correct parameter names >>>
-  num_mamba_layers_min: 2 
-  num_mamba_layers_max: 2
-  mamba_d_model_choices: [64]
-  mamba_d_state_choices: [16]
-  features_dim_choices: [128]
-  dropout_min: 0.1
-  dropout_max: 0.1
-  
-  hurst_window_choices: [50]
-  momentum_window_choices: [21]
-  volatility_window_choices: [21]
+  enabled: false
 
 data:
-  # Use minimal data slice
   regime_definitions:
     train_trending:
-      - ["2024-01-01", "2024-01-07"]  # Just 1 week
-
-saving:
-  output_dir: output_mamba_mnq_SmokeTest
-  scaler_filename: mnq_scaler_SmokeTest.joblib
-  optuna_study_name: mnq_Opt_SmokeTest
-  optuna_db_name: optuna_study_mnq_SmokeTest.db 
-  best_params_filename: mnq_best_params_SmokeTest.joblib 
-  final_model_filename: mnq_final_model_SmokeTest.zip 
-  vec_normalize_filename: mnq_vecnormalize_final_SmokeTest.pkl
-  trades_filename: test_trades_SmokeTest.csv
-  equity_filename: test_equity_SmokeTest.csv
-  report_filename: mnq_report_SmokeTest.html
-  optuna_history_plot: optuna_history_SmokeTest.png 
-  optuna_importance_plot: optuna_importance_SmokeTest.png 
-  equity_curve_plot: equity_curve_SmokeTest.png
-  positions_plot: positions_plot_SmokeTest.png
-  log_filename: mamba_rl_trading_SmokeTest.log
-  checkpoint_dir_name: 'checkpoints_SmokeTest'
+      - ["2024-01-01", "2024-01-07"]

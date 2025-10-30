@@ -1,0 +1,24 @@
+# Base configuration file
+defaults:
+  - experiment: smoke_test
+  - optimization: default
+  - _self_  # Load this file LAST so interpolations succeed
+
+# Add a fallback structure for 'experiment'
+experiment:
+  name: "DefaultExperiment"
+  description: "Base experiment fallback"
+
+# ... (the rest of your config.yaml content remains the same) ...
+instrument: mnq
+data:
+  train_start: "2020-01-01"
+  train_end: "2021-12-31"
+  val_start: "2022-01-01"
+  val_end: "2022-12-31"
+  test_start: "2023-01-01"
+  test_end: "2024-12-31"
+# ... etc ...
+saving:
+  output_dir: output_mamba_mnq_${experiment.name}
+  # ... etc ...

@@ -1,0 +1,19 @@
+# This file now ONLY contains overrides for the smoke test.
+# The problematic '# @package _global_' has been REMOVED.
+
+defaults:
+  - override /optimization: disabled
+
+experiment:
+  name: SmokeTest
+
+training:
+  total_timesteps: 10000
+
+optimization:
+  enabled: false
+
+data:
+  regime_definitions:
+    train_trending:
+      - ["2024-01-01", "2024-01-07"]

@@ -1,15 +1,11 @@
-# <<< CORRECTED: Now uses the correct, nested import path for utils. >>>
-
 import optuna
 from optuna.visualization import plot_optimization_history, plot_param_importances
 import pandas as pd
 import logging
 import os
-import sqlite3
 from omegaconf import DictConfig
 from typing import Tuple, Dict, Any, Optional
 
-# <<< THE FIX IS HERE: Changed from 'src.utils' to 'src.utils.utils' >>>
 from src.utils.utils import ensure_dir
 from .objective import Objective
 
@@ -18,7 +14,20 @@ log = logging.getLogger(__name__)
 def run_optimization(cfg: DictConfig, df_train: pd.DataFrame, df_val: pd.DataFrame) -> Tuple[Optional[optuna.Study], Optional[Dict[str, Any]]]:
     """Enhanced Optuna HPO with robust error handling"""
     
-    db_path = cfg.saving.optuna_db_name
+    # 🔻 DEFENSIVE FIX: Safely resolve optuna_db_name
+    try:
+        db_path = cfg.saving.optuna_db_name
+        log.info(f"Successfully resolved optuna_db_name via interpolation: {db_path}")
+    except Exception as e:
+        log.warning(f"Could not resolve cfg.saving.optuna_db_name due to interpolation error: {e}")
+        # Fallback: construct the name manually
+        exp_name = "default_exp"
+        if 'experiment' in cfg and 'name' in cfg.experiment:
+            exp_name = cfg.experiment.name
+        instrument = cfg.get("instrument", "unknown")
+        db_path = f"/opt/ml/checkpoints/optuna_study_{exp_name}_{instrument}.db"
+        log.info(f"Using fallback database path: {db_path}")
+    
     storage_name = f"sqlite:///{db_path}"
     
     output_dir = cfg.saving.output_dir
@@ -29,11 +38,7 @@ def run_optimization(cfg: DictConfig, df_train: pd.DataFrame, df_val: pd.DataFra
 
     pruner = None
     if cfg.optimization.get('pruning', {}).get('enabled', False):
-        pruner = optuna.pruners.MedianPruner(
-            n_startup_trials=cfg.optimization.pruning.get('n_startup_trials', 5),
-            n_warmup_steps=cfg.optimization.pruning.get('n_warmup_steps', 10),
-            interval_steps=cfg.optimization.pruning.get('interval_steps', 1)
-        )
+        pruner = optuna.pruners.MedianPruner()
 
     try:
         study = optuna.create_study(
