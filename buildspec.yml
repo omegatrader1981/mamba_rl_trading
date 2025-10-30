@@ -1,39 +1,48 @@
-# buildspec.yml for Project Phoenix
-# DEFINITIVE MIGRATION VERSION: Pushes to both eu-west-1 and eu-west-2.
-
 version: 0.2
 
 env:
   variables:
     ACCOUNT_ID: "537124950121"
     PRIMARY_REGION: "eu-west-2"
-    SECONDARY_REGION: "eu-west-1"
-    IMAGE_REPO_NAME: "mamba-rl-trading"
-    DOCKER_BUILDKIT: "1"
+    SECONDARY_REGION: "eu-west-1" # Or your other region
+    IMAGE_REPO_NAME: "mamba_rl_trading"
+  parameter-store:
+    # You can store secrets here if needed
+    # DOCKERHUB_USERNAME: "/my-app/dockerhub/username"
 
 phases:
   pre_build:
     commands:
-      - 'echo "Logging in to ECR in both regions..."'
+      - echo "Logging in to ECR..."
+      # 🔻 --- THE FIX: Add login for the public SageMaker registry --- 🔻
+      - aws ecr get-login-password --region $PRIMARY_REGION | docker login --username AWS --password-stdin 763104351884.dkr.ecr.$PRIMARY_REGION.amazonaws.com
+      # Login to your own registry
       - aws ecr get-login-password --region $PRIMARY_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com
+      # Login to the secondary registry if you use one
       - aws ecr get-login-password --region $SECONDARY_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$SECONDARY_REGION.amazonaws.com
 
   build:
     commands:
-      - 'echo "Build started on $(date)"'
-      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Build started on $(date)"
+      # Use the git commit hash as the image tag for traceability
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
+      - echo "Building Docker image with tag: $IMAGE_TAG"
       - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
 
   post_build:
     commands:
-      - 'echo "Build completed on $(date)"'
-      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
-      - 'echo "Tagging and Pushing to Primary Region (eu-west-2)..."'
+      - echo "Build completed on $(date)"
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
+      - echo "Tagging and Pushing to Primary Region ($PRIMARY_REGION)..."
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
-      - docker push --all-tags $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com/$IMAGE_REPO_NAME
-      
-      - 'echo "Tagging and Pushing to Secondary Region (eu-west-1)..."'
+      - docker push $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - echo "Tagging and Pushing to Secondary Region ($SECONDARY_REGION)..."
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$SECONDARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$SECONDARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
-      - docker push --all-tags $ACCOUNT_ID.dkr.ecr.$SECONDARY_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      - docker push $ACCOUNT_ID.dkr.ecr.$SECONDARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - echo "Creating image detail file for downstream steps..."
+      - printf '[{"name":"MambaRLTradingImage","imageUri":"%s"}]' "$ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG" > imagedefinitions.json
+      - cat imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
