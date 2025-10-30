@@ -6,15 +6,12 @@ env:
     PRIMARY_REGION: "eu-west-2"
     SECONDARY_REGION: "eu-west-1" # Or your other region
     IMAGE_REPO_NAME: "mamba_rl_trading"
-  parameter-store:
-    # You can store secrets here if needed
-    # DOCKERHUB_USERNAME: "/my-app/dockerhub/username"
 
 phases:
   pre_build:
     commands:
       - echo "Logging in to ECR..."
-      # 🔻 --- THE FIX: Add login for the public SageMaker registry --- 🔻
+      # Login for the public SageMaker registry
       - aws ecr get-login-password --region $PRIMARY_REGION | docker login --username AWS --password-stdin 763104351884.dkr.ecr.$PRIMARY_REGION.amazonaws.com
       # Login to your own registry
       - aws ecr get-login-password --region $PRIMARY_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com
