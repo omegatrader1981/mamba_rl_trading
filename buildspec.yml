@@ -4,24 +4,20 @@ env:
   variables:
     ACCOUNT_ID: "537124950121"
     PRIMARY_REGION: "eu-west-2"
-    SECONDARY_REGION: "eu-west-1" # Or your other region
+    SECONDARY_REGION: "eu-west-1"
     IMAGE_REPO_NAME: "mamba_rl_trading"
 
 phases:
   pre_build:
     commands:
       - echo "Logging in to ECR..."
-      # Login for the public SageMaker registry
       - aws ecr get-login-password --region $PRIMARY_REGION | docker login --username AWS --password-stdin 763104351884.dkr.ecr.$PRIMARY_REGION.amazonaws.com
-      # Login to your own registry
       - aws ecr get-login-password --region $PRIMARY_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$PRIMARY_REGION.amazonaws.com
-      # Login to the secondary registry if you use one
       - aws ecr get-login-password --region $SECONDARY_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$SECONDARY_REGION.amazonaws.com
 
   build:
     commands:
       - echo "Build started on $(date)"
-      # Use the git commit hash as the image tag for traceability
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
       - echo "Building Docker image with tag: $IMAGE_TAG"
       - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
