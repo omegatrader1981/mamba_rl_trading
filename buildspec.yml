@@ -5,32 +5,37 @@ env:
     ACCOUNT_ID: "537124950121"
     REGION: "eu-west-2"
     IMAGE_REPO_NAME: "mamba_rl_trading"
+    # 🔻 --- We are building the test image --- 🔻
+    IMAGE_TAG: "test-no-chrome"
 
 phases:
   pre_build:
     commands:
+      - echo "===== PRE-BUILD PHASE ====="
       - echo "Logging in to ECR..."
       - aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin 763104351884.dkr.ecr.${REGION}.amazonaws.com
       - aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
 
   build:
     commands:
-      - echo "Build started on $(date)"
-      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
-      - echo "Building Docker image with tag ${IMAGE_TAG}"
-      - docker build -t ${IMAGE_REPO_NAME}:${IMAGE_TAG} .
+      - echo "===== BUILD PHASE ====="
+      - echo "Building Docker image with tag ${IMAGE_TAG} using Dockerfile.no_chrome"
+      # 🔻 --- We are using the test Dockerfile --- 🔻
+      - docker build -t ${IMAGE_REPO_NAME}:${IMAGE_TAG} -f Dockerfile.no_chrome .
+      - echo "--- Verifying local images after build ---"
+      - docker images | grep ${IMAGE_REPO_NAME}
 
   post_build:
     commands:
-      - echo "Build completed on $(date)"
-      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
-      - echo "Tagging and pushing to ${REGION}"
+      - echo "===== POST-BUILD PHASE ====="
+      - echo "--- Listing images in ECR repository BEFORE push ---"
+      - aws ecr list-images --repository-name ${IMAGE_REPO_NAME} --region ${REGION} || echo "Repository might be empty."
+      
+      - echo "Tagging and pushing image ${IMAGE_TAG} to ${REGION}"
       - docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
       - docker push ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
-      - echo "Creating image detail file"
-      - printf '[{"name":"MambaRLTradingImage","imageUri":"%s"}]' "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}" > imagedefinitions.json
-      - cat imagedefinitions.json
-
-artifacts:
-  files:
-    - imagedefinitions.json
+      
+      - echo "--- Listing images in ECR repository AFTER push ---"
+      - aws ecr list-images --repository-name ${IMAGE_REPO_NAME} --region ${REGION}
+      
+      - echo "Build and push complete for test image."
