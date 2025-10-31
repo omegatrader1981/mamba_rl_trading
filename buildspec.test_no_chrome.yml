@@ -1,0 +1,82 @@
+version: 0.2
+
+env:
+  variables:
+    ACCOUNT_ID: "537124950121"
+    REGION: "eu-west-2"
+    IMAGE_REPO_NAME: "mamba_rl_trading"
+    TEST_IMAGE_TAG: "test-no-chrome"
+  exported-variables:
+    - IMAGE_URI
+    - IMAGE_TAG
+
+phases:
+  pre_build:
+    commands:
+      - echo "===== PRE-BUILD PHASE ====="
+      - echo "Build started on $(date)"
+      - echo "Logging in to AWS Deep Learning Containers ECR..."
+      - |
+        aws ecr get-login-password --region ${REGION} | \
+        docker login --username AWS --password-stdin \
+        763104351884.dkr.ecr.${REGION}.amazonaws.com
+      - echo "Logging in to private ECR repository..."
+      - |
+        aws ecr get-login-password --region ${REGION} | \
+        docker login --username AWS --password-stdin \
+        ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
+      - echo "Verifying ECR repository exists..."
+      - |
+        aws ecr describe-repositories \
+        --repository-names ${IMAGE_REPO_NAME} \
+        --region ${REGION} || \
+        (echo "ERROR: Repository ${IMAGE_REPO_NAME} not found" && exit 1)
+      - echo "Setting image URI..."
+      - export IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${TEST_IMAGE_TAG}"
+      - export IMAGE_TAG="${TEST_IMAGE_TAG}"
+      - echo "Image will be pushed to ${IMAGE_URI}"
+
+  build:
+    commands:
+      - echo "===== BUILD PHASE ====="
+      - echo "Building Docker image with tag ${TEST_IMAGE_TAG}"
+      - echo "Using Dockerfile: Dockerfile.no_chrome"
+      - |
+        docker build \
+        -t ${IMAGE_REPO_NAME}:${TEST_IMAGE_TAG} \
+        -f Dockerfile.no_chrome \
+        --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+        --build-arg VCS_REF=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") \
+        .
+      - echo "Docker image built successfully"
+      - docker images ${IMAGE_REPO_NAME}:${TEST_IMAGE_TAG}
+
+  post_build:
+    commands:
+      - echo "===== POST-BUILD PHASE ====="
+      - echo "Tagging image for ECR..."
+      - docker tag ${IMAGE_REPO_NAME}:${TEST_IMAGE_TAG} ${IMAGE_URI}
+      - echo "Pushing image to ECR repository in ${REGION}..."
+      - docker push ${IMAGE_URI}
+      - echo "Image pushed successfully to ${IMAGE_URI}"
+      - echo "Generating image digest..."
+      - |
+        IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${IMAGE_URI} 2>/dev/null || echo "digest unavailable")
+        echo "Image digest: ${IMAGE_DIGEST}"
+      - echo "===== BUILD COMPLETE ====="
+      - echo "Build completed on $(date)"
+      - echo "Summary:"
+      - echo "  Repository: ${IMAGE_REPO_NAME}"
+      - echo "  Tag: ${TEST_IMAGE_TAG}"
+      - echo "  URI: ${IMAGE_URI}"
+      - echo "  Region: ${REGION}"
+
+artifacts:
+  files:
+    - '**/*'
+  name: build-artifacts-$(date +%Y%m%d-%H%M%S)
+
+cache:
+  paths:
+    - '/root/.cache/pip/**/*'
+    - '/var/lib/docker/**/*'
