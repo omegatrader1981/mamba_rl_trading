@@ -1,0 +1,22 @@
+# Use the official SageMaker PyTorch image as a base
+FROM 763104351884.dkr.ecr.eu-west-2.amazonaws.com/pytorch-training:2.0.0-gpu-py310
+
+USER root
+
+# 🔻 --- THE CHANGE: Chrome installation is removed for this test --- 🔻
+# The 'apt-get install google-chrome-stable' section has been deleted.
+
+# Copy your requirements file (the one with the CUDA 11.8 fix)
+COPY requirements.txt /tmp/requirements.txt
+
+# Install Python packages
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy your application code
+COPY . /opt/ml/code
+
+# Set the working directory
+WORKDIR /opt/ml/code
+
+# Switch back to the default SageMaker user
+USER sagemaker-user
