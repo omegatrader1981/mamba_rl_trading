@@ -1,5 +1,4 @@
 # <<< DEFINITIVE FINAL VERSION: With correct HPO guard clause. >>>
-
 import pandas as pd
 import logging
 import joblib
@@ -10,7 +9,6 @@ from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback
 from typing import List
-
 from src.evaluation import evaluate_agent
 from src.optimize.model_builder import create_ppo_model, create_sac_model
 from src.environment import FuturesTradingEnv
@@ -19,94 +17,68 @@ from src.utils.sagemaker_utils import initialize_sagemaker_environment, sagemake
 log = logging.getLogger(__name__)
 
 @sagemaker_safe
-def train_and_evaluate_model(
-    cfg: DictConfig,
-    df_train_s: pd.DataFrame,
-    df_val_s: pd.DataFrame,
-    df_test_s: pd.DataFrame,
-    feature_cols: List[str],
-    scaler: object
-):
+def train_and_evaluate_model(cfg: DictConfig, df_train_s: pd.DataFrame, df_val_s: pd.DataFrame, df_test_s: pd.DataFrame, feature_cols: List[str], scaler: object):
     cfg = initialize_sagemaker_environment(cfg)
-    
-    log.info("--- Starting Model Training & Evaluation Pipeline (Resilient & Validated) ---")
+    log.info("--- Starting Model Training & Evaluation Pipeline ---")
     
     checkpoint_dir = cfg.get("checkpointing", {}).get("s3_base_path", "/opt/ml/checkpoints")
     sagemaker_model_dir = "/opt/ml/model"
     sagemaker_output_dir = cfg.saving.output_dir
-
-    # --- 🔻 THE FINAL FIX: Correctly skip HPO based on your diagnosis ---
+    
     if cfg.optimization.get("enabled", False):
         log.info("🚀 Optimization is ENABLED. Starting HPO...")
-        from src.optimize.hpo_runner import run_optimization # Import only when needed
+        from src.optimize.hpo_runner import run_optimization
         study, best_params = run_optimization(cfg, df_train_s, df_val_s)
-        if not best_params:
-            raise RuntimeError("Hyperparameter optimization failed to produce best parameters.")
-        best_params_path = os.path.join(sagemaker_output_dir, cfg.saving.best_params_filename)
-        joblib.dump(best_params, best_params_path)
-        log.info(f"Best HPO parameters saved to {best_params_path}")
+        if not best_params: 
+            raise RuntimeError("Hyperparameter optimization failed.")
+        joblib.dump(best_params, os.path.join(sagemaker_output_dir, cfg.saving.best_params_filename))
+        log.info(f"Best HPO parameters saved.")
     else:
         best_params = None
-        log.info("⏩ Optimization is DISABLED (smoke test mode). Using default hyperparameters from config.")
-    # --- 🔺 END OF FIX ---
-
+        log.info("⏩ Optimization is DISABLED. Using default hyperparameters.")
+    
     log.info("Preparing for final model training...")
     df_train_val_s = pd.concat([df_train_s, df_val_s]).sort_index()
-    
     final_full_cfg = cfg.copy()
     OmegaConf.set_struct(final_full_cfg, False)
-    # Use the correct key 'env.lookback_window'
     final_full_cfg.env.lookback_window = best_params.get('lookback_window') if best_params else cfg.env.lookback_window
+    
     agent_type = final_full_cfg.experiment.get('agent_type', 'ppo')
-    if agent_type == 'sac':
-        final_full_cfg.environment.activity_bonus_scale = best_params.get('activity_bonus_scale') if best_params else cfg.environment.activity_bonus_scale
-        final_full_cfg.environment.hold_penalty_scale = best_params.get('hold_penalty_scale') if best_params else cfg.environment.hold_penalty_scale
-        final_full_cfg.environment.win_bonus_scale = best_params.get('win_bonus_scale') if best_params else cfg.environment.win_bonus_scale
-        final_full_cfg.environment.loss_penalty_scale = best_params.get('loss_penalty_scale') if best_params else cfg.environment.loss_penalty_scale
-        final_full_cfg.environment.unrealized_loss_penalty_scale = best_params.get('unrealized_loss_penalty_scale') if best_params else cfg.environment.unrealized_loss_penalty_scale
-    OmegaConf.set_struct(final_full_cfg, True)
-
     final_env = DummyVecEnv([lambda: FuturesTradingEnv(df_train_val_s, feature_cols, final_full_cfg)])
-
-    latest_checkpoint = None
-    if cfg.get("checkpointing", {}).get("enabled", False) and os.path.exists(checkpoint_dir):
-        checkpoint_files = glob.glob(os.path.join(checkpoint_dir, "final_model_*.zip"))
-        if checkpoint_files:
-            latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
-            log.info(f"Resuming FINAL training from checkpoint: {latest_checkpoint}")
-
-    if latest_checkpoint:
-        if agent_type == 'sac': final_model = SAC.load(latest_checkpoint, env=final_env)
-        else: final_model = PPO.load(latest_checkpoint, env=final_env)
+    
+    if best_params:
+        class DummyTrial:
+            def __init__(self, params): 
+                self.params = params
+            def suggest_float(self, name, low, high, log=False): 
+                return self.params.get(name, (low + high) / 2)
+            def suggest_categorical(self, name, choices): 
+                return self.params.get(name, choices[0])
+            def suggest_int(self, name, low, high): 
+                return self.params.get(name, (low + high) // 2)
+        
+        dummy_trial = DummyTrial(best_params)
+        if agent_type == 'sac': 
+            final_model = create_sac_model(dummy_trial, final_env, final_full_cfg)
+        else: 
+            final_model = create_ppo_model(dummy_trial, final_env, final_full_cfg)
     else:
-        log.info("No final model checkpoint found. Constructing new model.")
-        if best_params is not None:
-            class DummyTrial:
-                def __init__(self, params): self.params = params
-                def suggest_float(self, name, low, high, log=False): return self.params.get(name)
-                def suggest_categorical(self, name, choices): return self.params.get(name)
-                def suggest_int(self, name, low, high): return self.params.get(name)
-            dummy_trial = DummyTrial(best_params)
-            if agent_type == 'sac': final_model = create_sac_model(dummy_trial, final_env, final_full_cfg)
-            else: final_model = create_ppo_model(dummy_trial, final_env, final_full_cfg)
-        else:
-            if agent_type == 'sac': final_model = create_sac_model(None, final_env, final_full_cfg)
-            else: final_model = create_ppo_model(None, final_env, final_full_cfg)
-    callbacks = []
-    if cfg.get("checkpointing", {}).get("enabled", False):
-        checkpoint_callback = CheckpointCallback(save_freq=cfg.checkpointing.save_freq, save_path=checkpoint_dir, name_prefix="final_model")
-        callbacks.append(checkpoint_callback)
-    log.info(f"Starting/resuming final training for {final_full_cfg.training.total_timesteps} timesteps...")
-    start_timesteps = getattr(final_model, 'num_timesteps', 0)
-    remaining_timesteps = final_full_cfg.training.total_timesteps - start_timesteps
-    if remaining_timesteps > 0:
-        final_model.learn(total_timesteps=remaining_timesteps, callback=callbacks if callbacks else None, reset_num_timesteps=False)
-    final_model_sagemaker_path = os.path.join(sagemaker_model_dir, "final_model.zip")
-    final_model.save(final_model_sagemaker_path)
-    log.info(f"Final model saved to SageMaker model directory: {final_model_sagemaker_path}")
-    final_model_output_path = os.path.join(sagemaker_output_dir, cfg.saving.final_model_filename)
-    final_model.save(final_model_output_path)
-    log.info(f"Final model also saved to output directory: {final_model_output_path}")
+        log.info("Building model with default config (no HPO)")
+        if agent_type == 'sac': 
+            final_model = SAC("MlpPolicy", final_env, verbose=1, device="auto")
+        else: 
+            final_model = PPO("MlpPolicy", final_env, verbose=1, device="auto")
+    
+    log.info(f"Starting final training for {final_full_cfg.training.total_timesteps} timesteps...")
+    final_model.learn(total_timesteps=final_full_cfg.training.total_timesteps)
+    
+    final_model.save(os.path.join(sagemaker_model_dir, "final_model.zip"))
+    log.info(f"Final model saved to SageMaker model directory.")
+    
+    final_model.save(os.path.join(sagemaker_output_dir, cfg.saving.final_model_filename))
+    log.info(f"Final model also saved to output directory.")
+    
     log.info("Evaluating final model on unseen test data...")
     evaluate_agent(final_model, df_test_s, feature_cols, final_full_cfg, output_dir=sagemaker_output_dir)
+    
     log.info("--- Model Training & Evaluation Pipeline COMPLETED ---")
