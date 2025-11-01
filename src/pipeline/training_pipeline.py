@@ -1,4 +1,5 @@
 # <<< DEFINITIVE FINAL VERSION: With correct HPO guard clause. >>>
+
 import pandas as pd
 import logging
 import joblib
@@ -9,6 +10,7 @@ from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import CheckpointCallback
 from typing import List
+
 from src.evaluation import evaluate_agent
 from src.optimize.model_builder import create_ppo_model, create_sac_model
 from src.environment import FuturesTradingEnv
@@ -17,19 +19,28 @@ from src.utils.sagemaker_utils import initialize_sagemaker_environment, sagemake
 log = logging.getLogger(__name__)
 
 @sagemaker_safe
-def train_and_evaluate_model(cfg: DictConfig, df_train_s: pd.DataFrame, df_val_s: pd.DataFrame, df_test_s: pd.DataFrame, feature_cols: List[str], scaler: object):
+def train_and_evaluate_model(
+    cfg: DictConfig,
+    df_train_s: pd.DataFrame,
+    df_val_s: pd.DataFrame,
+    df_test_s: pd.DataFrame,
+    feature_cols: List[str],
+    scaler: object
+):
     cfg = initialize_sagemaker_environment(cfg)
+    
     log.info("--- Starting Model Training & Evaluation Pipeline ---")
     
     checkpoint_dir = cfg.get("checkpointing", {}).get("s3_base_path", "/opt/ml/checkpoints")
     sagemaker_model_dir = "/opt/ml/model"
     sagemaker_output_dir = cfg.saving.output_dir
-    
+
+    # --- 🔻 THE FINAL FIX: Correctly skip HPO ---
     if cfg.optimization.get("enabled", False):
         log.info("🚀 Optimization is ENABLED. Starting HPO...")
-        from src.optimize.hpo_runner import run_optimization
+        from src.optimize.hpo_runner import run_optimization # Import only when needed
         study, best_params = run_optimization(cfg, df_train_s, df_val_s)
-        if not best_params: 
+        if not best_params:
             raise RuntimeError("Hyperparameter optimization failed.")
         joblib.dump(best_params, os.path.join(sagemaker_output_dir, cfg.saving.best_params_filename))
         log.info(f"Best HPO parameters saved.")
