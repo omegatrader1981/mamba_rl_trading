@@ -21,6 +21,41 @@ COPY . /opt/ml/code
 # Set the working directory
 WORKDIR /opt/ml/code
 
+# Create a shell wrapper script for debugging
+RUN cat > /opt/ml/code/train_wrapper.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "=========================================="
+echo "TRAIN WRAPPER STARTING"
+echo "=========================================="
+echo "Current directory: $(pwd)"
+echo "Current user: $(whoami)"
+echo "Python version: $(python --version)"
+echo ""
+echo "Contents of /opt/ml/code:"
+ls -la /opt/ml/code
+echo ""
+echo "Contents of /opt/ml/code/src:"
+ls -la /opt/ml/code/src || echo "ERROR: src/ directory not found!"
+echo ""
+echo "Checking if src/train.py exists:"
+test -f /opt/ml/code/src/train.py && echo "✅ src/train.py EXISTS" || echo "❌ src/train.py MISSING"
+echo ""
+echo "Python path:"
+python -c "import sys; print('\n'.join(sys.path))"
+echo ""
+echo "=========================================="
+echo "ATTEMPTING TO RUN TRAINING SCRIPT"
+echo "=========================================="
+
+# Run the actual training script
+exec python src/train.py "$@"
+EOF
+
+# Make the wrapper executable
+RUN chmod +x /opt/ml/code/train_wrapper.sh
+
 # Set Python path and unbuffered output for immediate logs
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
@@ -28,5 +63,5 @@ ENV PYTHONUNBUFFERED=1 \
 # Switch back to the default SageMaker user
 USER sagemaker-user
 
-# THE FIX: Tell SageMaker what command to run
-ENTRYPOINT ["python", "src/train.py"]
+# Use the shell wrapper as entrypoint
+ENTRYPOINT ["/bin/bash", "/opt/ml/code/train_wrapper.sh"]
