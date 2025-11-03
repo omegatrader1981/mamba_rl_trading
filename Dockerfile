@@ -1,5 +1,5 @@
-# Base image with CUDA 11.8 and cuDNN 8 development tools
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+# Base image with CUDA 12.1 - THIS IS THE FIX
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
 # Set non-interactive frontend for apt installs
 ENV DEBIAN_FRONTEND=noninteractive
@@ -28,7 +28,7 @@ WORKDIR /opt/ml/code
 # STEP 1: Upgrade pip and install core Python build tools
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel packaging
 
-# STEP 2: Install PyTorch (the core dependency)
+# STEP 2: Install PyTorch (for CUDA 12.1, matching the base image)
 RUN pip install --no-cache-dir torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121
 
 # STEP 3: Install the complex, compiled packages (Mamba)
