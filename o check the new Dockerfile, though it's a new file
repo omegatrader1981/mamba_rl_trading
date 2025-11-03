@@ -1,0 +1,157 @@
+[1mdiff --git a/src/pipeline/training_pipeline.py b/src/pipeline/training_pipeline.py[m
+[1mindex 415f5de8..eeace9c1 100755[m
+[1m--- a/src/pipeline/training_pipeline.py[m
+[1m+++ b/src/pipeline/training_pipeline.py[m
+[36m@@ -1,5 +1,4 @@[m
+ # <<< DEFINITIVE FINAL VERSION: With correct HPO guard clause. >>>[m
+[31m-[m
+ import pandas as pd[m
+ import logging[m
+ import joblib[m
+[36m@@ -10,7 +9,6 @@[m [mfrom stable_baselines3 import PPO, SAC[m
+ from stable_baselines3.common.vec_env import DummyVecEnv[m
+ from stable_baselines3.common.callbacks import CheckpointCallback[m
+ from typing import List[m
+[31m-[m
+ from src.evaluation import evaluate_agent[m
+ from src.optimize.model_builder import create_ppo_model, create_sac_model[m
+ from src.environment import FuturesTradingEnv[m
+[36m@@ -19,94 +17,68 @@[m [mfrom src.utils.sagemaker_utils import initialize_sagemaker_environment, sagemake[m
+ log = logging.getLogger(__name__)[m
+ [m
+ @sagemaker_safe[m
+[31m-def train_and_evaluate_model([m
+[31m-    cfg: DictConfig,[m
+[31m-    df_train_s: pd.DataFrame,[m
+[31m-    df_val_s: pd.DataFrame,[m
+[31m-    df_test_s: pd.DataFrame,[m
+[31m-    feature_cols: List[str],[m
+[31m-    scaler: object[m
+[31m-):[m
+[32m+[m[32mdef train_and_evaluate_model(cfg: DictConfig, df_train_s: pd.DataFrame, df_val_s: pd.DataFrame, df_test_s: pd.DataFrame, feature_cols: List[str], scaler: object):[m
+     cfg = initialize_sagemaker_environment(cfg)[m
+[31m-    [m
+[31m-    log.info("--- Starting Model Training & Evaluation Pipeline (Resilient & Validated) ---")[m
+[32m+[m[32m    log.info("--- Starting Model Training & Evaluation Pipeline ---")[m
+     [m
+     checkpoint_dir = cfg.get("checkpointing", {}).get("s3_base_path", "/opt/ml/checkpoints")[m
+     sagemaker_model_dir = "/opt/ml/model"[m
+     sagemaker_output_dir = cfg.saving.output_dir[m
+[31m-[m
+[31m-    # --- 🔻 THE FINAL FIX: Correctly skip HPO based on your diagnosis ---[m
+[32m+[m[41m    [m
+     if cfg.optimization.get("enabled", False):[m
+         log.info("🚀 Optimization is ENABLED. Starting HPO...")[m
+[31m-        from src.optimize.hpo_runner import run_optimization # Import only when needed[m
+[32m+[m[32m        from src.optimize.hpo_runner import run_optimization[m
+         study, best_params = run_optimization(cfg, df_train_s, df_val_s)[m
+[31m-        if not best_params:[m
+[31m-            raise RuntimeError("Hyperparameter optimization failed to produce best parameters.")[m
+[31m-        best_params_path = os.path.join(sagemaker_output_dir, cfg.saving.best_params_filename)[m
+[31m-        joblib.dump(best_params, best_params_path)[m
+[31m-        log.info(f"Best HPO parameters saved to {best_params_path}")[m
+[32m+[m[32m        if not best_params:[m[41m [m
+[32m+[m[32m            raise RuntimeError("Hyperparameter optimization failed.")[m
+[32m+[m[32m        joblib.dump(best_params, os.path.join(sagemaker_output_dir, cfg.saving.best_params_filename))[m
+[32m+[m[32m        log.info(f"Best HPO parameters saved.")[m
+     else:[m
+         best_params = None[m
+[31m-        log.info("⏩ Optimization is DISABLED (smoke test mode). Using default hyperparameters from config.")[m
+[31m-    # --- 🔺 END OF FIX ---[m
+[31m-[m
+[32m+[m[32m        log.info("⏩ Optimization is DISABLED. Using default hyperparameters.")[m
+[32m+[m[41m    [m
+     log.info("Preparing for final model training...")[m
+     df_train_val_s = pd.concat([df_train_s, df_val_s]).sort_index()[m
+[31m-    [m
+     final_full_cfg = cfg.copy()[m
+     OmegaConf.set_struct(final_full_cfg, False)[m
+[31m-    # Use the correct key 'env.lookback_window'[m
+     final_full_cfg.env.lookback_window = best_params.get('lookback_window') if best_params else cfg.env.lookback_window[m
+[32m+[m[41m    [m
+     agent_type = final_full_cfg.experiment.get('agent_type', 'ppo')[m
+[31m-    if agent_type == 'sac':[m
+[31m-        final_full_cfg.environment.activity_bonus_scale = best_params.get('activity_bonus_scale') if best_params else cfg.environment.activity_bonus_scale[m
+[31m-        final_full_cfg.environment.hold_penalty_scale = best_params.get('hold_penalty_scale') if best_params else cfg.environment.hold_penalty_scale[m
+[31m-        final_full_cfg.environment.win_bonus_scale = best_params.get('win_bonus_scale') if best_params else cfg.environment.win_bonus_scale[m
+[31m-        final_full_cfg.environment.loss_penalty_scale = best_params.get('loss_penalty_scale') if best_params else cfg.environment.loss_penalty_scale[m
+[31m-        final_full_cfg.environment.unrealized_loss_penalty_scale = best_params.get('unrealized_loss_penalty_scale') if best_params else cfg.environment.unrealized_loss_penalty_scale[m
+[31m-    OmegaConf.set_struct(final_full_cfg, True)[m
+[31m-[m
+     final_env = DummyVecEnv([lambda: FuturesTradingEnv(df_train_val_s, feature_cols, final_full_cfg)])[m
+[31m-[m
+[31m-    latest_checkpoint = None[m
+[31m-    if cfg.get("checkpointing", {}).get("enabled", False) and os.path.exists(checkpoint_dir):[m
+[31m-        checkpoint_files = glob.glob(os.path.join(checkpoint_dir, "final_model_*.zip"))[m
+[31m-        if checkpoint_files:[m
+[31m-            latest_checkpoint = max(checkpoint_files, key=os.path.getctime)[m
+[31m-            log.info(f"Resuming FINAL training from checkpoint: {latest_checkpoint}")[m
+[31m-[m
+[31m-    if latest_checkpoint:[m
+[31m-        if agent_type == 'sac': final_model = SAC.load(latest_checkpoint, env=final_env)[m
+[31m-        else: final_model = PPO.load(latest_checkpoint, env=final_env)[m
+[32m+[m[41m    [m
+[32m+[m[32m    if best_params:[m
+[32m+[m[32m        class DummyTrial:[m
+[32m+[m[32m            def __init__(self, params):[m[41m [m
+[32m+[m[32m                self.params = params[m
+[32m+[m[32m            def suggest_float(self, name, low, high, log=False):[m[41m [m
+[32m+[m[32m                return self.params.get(name, (low + high) / 2)[m
+[32m+[m[32m            def suggest_categorical(self, name, choices):[m[41m [m
+[32m+[m[32m                return self.params.get(name, choices[0])[m
+[32m+[m[32m            def suggest_int(self, name, low, high):[m[41m [m
+[32m+[m[32m                return self.params.get(name, (low + high) // 2)[m
+[32m+[m[41m        [m
+[32m+[m[32m        dummy_trial = DummyTrial(best_params)[m
+[32m+[m[32m        if agent_type == 'sac':[m[41m [m
+[32m+[m[32m            final_model = create_sac_model(dummy_trial, final_env, final_full_cfg)[m
+[32m+[m[32m        else:[m[41m [m
+[32m+[m[32m            final_model = create_ppo_model(dummy_trial, final_env, final_full_cfg)[m
+     else:[m
+[31m-        log.info("No final model checkpoint found. Constructing new model.")[m
+[31m-        if best_params is not None:[m
+[31m-            class DummyTrial:[m
+[31m-                def __init__(self, params): self.params = params[m
+[31m-                def suggest_float(self, name, low, high, log=False): return self.params.get(name)[m
+[31m-                def suggest_categorical(self, name, choices): return self.params.get(name)[m
+[31m-                def suggest_int(self, name, low, high): return self.params.get(name)[m
+[31m-            dummy_trial = DummyTrial(best_params)[m
+[31m-            if agent_type == 'sac': final_model = create_sac_model(dummy_trial, final_env, final_full_cfg)[m
+[31m-            else: final_model = create_ppo_model(dummy_trial, final_env, final_full_cfg)[m
+[31m-        else:[m
+[31m-            if agent_type == 'sac': final_model = create_sac_model(None, final_env, final_full_cfg)[m
+[31m-            else: final_model = create_ppo_model(None, final_env, final_full_cfg)[m
+[31m-    callbacks = [][m
+[31m-    if cfg.get("checkpointing", {}).get("enabled", False):[m
+[31m-        checkpoint_callback = CheckpointCallback(save_freq=cfg.checkpointing.save_freq, save_path=checkpoint_dir, name_prefix="final_model")[m
+[31m-        callbacks.append(checkpoint_callback)[m
+[31m-    log.info(f"Starting/resuming final training for {final_full_cfg.training.total_timesteps} timesteps...")[m
+[31m-    start_timesteps = getattr(final_model, 'num_timesteps', 0)[m
+[31m-    remaining_timesteps = final_full_cfg.training.total_timesteps - start_timesteps[m
+[31m-    if remaining_timesteps > 0:[m
+[31m-        final_model.learn(total_timesteps=remaining_timesteps, callback=callbacks if callbacks else None, reset_num_timesteps=False)[m
+[31m-    final_model_sagemaker_path = os.path.join(sagemaker_model_dir, "final_model.zip")[m
+[31m-    final_model.save(final_model_sagemaker_path)[m
+[31m-    log.info(f"Final model saved to SageMaker model directory: {final_model_sagemaker_path}")[m
+[31m-    final_model_output_path = os.path.join(sagemaker_output_dir, cfg.saving.final_model_filename)[m
+[31m-    final_model.save(final_model_output_path)[m
+[31m-    log.info(f"Final model also saved to output directory: {final_model_output_path}")[m
+[32m+[m[32m        log.info("Building model with default config (no HPO)")[m
+[32m+[m[32m        if agent_type == 'sac':[m[41m [m
+[32m+[m[32m            final_model = SAC("MlpPolicy", final_env, verbose=1, device="auto")[m
+[32m+[m[32m        else:[m[41m [m
+[32m+[m[32m            final_model = PPO("MlpPolicy", final_env, verbose=1, device="auto")[m
+[32m+[m[41m    [m
+[32m+[m[32m    log.info(f"Starting final training for {final_full_cfg.training.total_timesteps} timesteps...")[m
+[32m+[m[32m    final_model.learn(total_timesteps=final_full_cfg.training.total_timesteps)[m
+[32m+[m[41m    [m
+[32m+[m[32m    final_model.save(os.path.join(sagemaker_model_dir, "final_model.zip"))[m
+[32m+[m[32m    log.info(f"Final model saved to SageMaker model directory.")[m
+[32m+[m[41m    [m
+[32m+[m[32m    final_model.save(os.path.join(sagemaker_output_dir, cfg.saving.final_model_filename))[m
+[32m+[m[32m    log.info(f"Final model also saved to output directory.")[m
+[32m+[m[41m    [m
+     log.info("Evaluating final model on unseen test data...")[m
+     evaluate_agent(final_model, df_test_s, feature_cols, final_full_cfg, output_dir=sagemaker_output_dir)[m
+[32m+[m[41m    [m
+     log.info("--- Model Training & Evaluation Pipeline COMPLETED ---")[m
