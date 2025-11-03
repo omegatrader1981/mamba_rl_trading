@@ -1,3 +1,4 @@
+# Using generic versions to leverage the stable, pre-installed packages in the base image.
 gymnasium
 stable-baselines3[extra]
 mamba-ssm
