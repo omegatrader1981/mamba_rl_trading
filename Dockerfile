@@ -1,33 +1,26 @@
-# Use newer NVIDIA PyTorch image with PyTorch 2.4+
-FROM nvcr.io/nvidia/pytorch:24.07-py3
+# Use official PyTorch 2.4.0 image with CUDA 12.1 (ABI-compatible with public Mamba wheels)
+FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn8-devel
 
 USER root
 
-# Install minimal system libraries
+# Install system dependencies (including build tools for causal-conv1d/mamba)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
     git \
     wget \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy and install Python dependencies
 COPY requirements.txt /tmp/requirements.txt
-
-# Verify PyTorch version first - fail fast if incorrect
-RUN python -c "import torch; print(f'PyTorch version from base image: {torch.__version__}'); assert torch.__version__.startswith('2.4'), 'FATAL: Base image does not have PyTorch 2.4!'"
-
-# Install base dependencies
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Install Mamba from the wheel that matches PyTorch 2.4
-RUN wget https://github.com/state-spaces/mamba/releases/download/v2.2.6.post3/mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl && \
-    pip install --no-cache-dir \
-        mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl \
-        causal-conv1d && \
-    rm mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
+# Install Mamba and causal-conv1d from source (to match CUDA 12.1 in this image)
+# They are NOT in requirements.txt to control build order and avoid conflicts
+RUN pip install --no-cache-dir causal-conv1d mamba-ssm
 
-# Verify critical dependencies are working
+# Verify critical dependencies
 RUN python -c "\
 import torch; print(f'✅ PyTorch: {torch.__version__}'); \
 print(f'✅ CUDA: {torch.version.cuda}'); \
@@ -38,11 +31,9 @@ print('All critical dependencies verified!')"
 
 # Copy application code
 COPY . /opt/ml/code
-
-# Set working directory
 WORKDIR /opt/ml/code
 
-# Create enhanced debug wrapper
+# Create training wrapper
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "=========================================="\n\
@@ -56,8 +47,11 @@ exec python src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
 
 RUN chmod +x /opt/ml/code/train_wrapper.sh
 
-ENV PYTHONUNBUFFERED=1 PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
+# Environment setup
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/opt/ml/code"
 
+# Non-root user for SageMaker
 RUN useradd -m -u 1000 sagemaker
 USER sagemaker
 
