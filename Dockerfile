@@ -1,5 +1,6 @@
-# Use NVIDIA PyTorch base - CUDA 12.5, PyTorch 2.4.1
-FROM nvcr.io/nvidia/pytorch:24.09-py3
+# Use NVIDIA PyTorch 24.08 → LAST container with PyTorch 2.4.0 (stable) + CUDA 12.5
+# ABI: False → compatible with cxx11abiFALSE wheels
+FROM nvcr.io/nvidia/pytorch:24.08-py3
 
 USER root
 
@@ -20,7 +21,8 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # Install causal-conv1d first
 RUN pip install --no-cache-dir "causal-conv1d>=1.5.0"
 
-# 🔑 KEY FIX: Use cu11 wheel (only one that exists) + proper filename + URL encoding
+# Install Mamba from cu11 wheel (only available) + proper filename
+# Matches PyTorch 2.4 + ABI=False in 24.08
 RUN curl -fL "https://github.com/state-spaces/mamba/releases/download/v2.2.6.post3/mamba_ssm-2.2.6.post3%2Bcu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" \
     -o "/tmp/mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" && \
     pip install --no-cache-dir "/tmp/mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" && \
@@ -63,13 +65,9 @@ exec python src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
 
 RUN chmod +x /opt/ml/code/train_wrapper.sh
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/opt/ml/code"
+ENV PYTHONUNBUFFERED=1 PYTHONPATH="/opt/ml/code"
 
-# Create non-root user
 RUN useradd -m -u 1000 sagemaker
 USER sagemaker
 
-# Entrypoint
 ENTRYPOINT ["/bin/bash", "/opt/ml/code/train_wrapper.sh"]
