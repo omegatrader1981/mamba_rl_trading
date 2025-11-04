@@ -1,5 +1,5 @@
-# Use NVIDIA PyTorch base - proven stable
-FROM nvcr.io/nvidia/pytorch:23.08-py3
+# Use newer NVIDIA PyTorch image with PyTorch 2.4+
+FROM nvcr.io/nvidia/pytorch:24.07-py3
 
 USER root
 
@@ -14,10 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements file
 COPY requirements.txt /tmp/requirements.txt
 
+# Verify PyTorch version first - fail fast if incorrect
+RUN python -c "import torch; print(f'PyTorch version from base image: {torch.__version__}'); assert torch.__version__.startswith('2.4'), 'FATAL: Base image does not have PyTorch 2.4!'"
+
 # Install base dependencies
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Install Mamba from pre-built wheel + causal-conv1d (combined for efficiency)
+# Install Mamba from the wheel that matches PyTorch 2.4
 RUN wget https://github.com/state-spaces/mamba/releases/download/v2.2.6.post3/mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl && \
     pip install --no-cache-dir \
         mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl \
@@ -39,37 +42,23 @@ COPY . /opt/ml/code
 # Set working directory
 WORKDIR /opt/ml/code
 
-# Create enhanced debug wrapper with CUDA info
+# Create enhanced debug wrapper
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "=========================================="\n\
 echo "SAGEMAKER CONTAINER STARTING"\n\
 echo "=========================================="\n\
-echo "Directory: $(pwd)"\n\
-echo "User: $(whoami)"\n\
-echo "Python: $(python --version)"\n\
-echo "PyTorch: $(python -c \"import torch; print(torch.__version__)\")"\n\
-echo "CUDA available: $(python -c \"import torch; print(torch.cuda.is_available())\")"\n\
-echo "CUDA version: $(python -c \"import torch; print(torch.version.cuda)\")"\n\
-echo "Mamba: $(python -c \"import mamba_ssm; print(mamba_ssm.__version__)\" 2>/dev/null || echo \"ERROR\")"\n\
-echo ""\n\
-echo "Files check:"\n\
-ls -la /opt/ml/code/src/train.py && echo "✅ train.py exists" || echo "❌ train.py MISSING"\n\
-echo ""\n\
-echo "=========================================="\n\
-echo "STARTING TRAINING"\n\
-echo "=========================================="\n\
+echo "PyTorch: $(python -c "import torch; print(torch.__version__)")"\n\
+echo "CUDA available: $(python -c "import torch; print(torch.cuda.is_available())")"\n\
+echo "Mamba: $(python -c "import mamba_ssm; print(mamba_ssm.__version__)")"\n\
+echo "Starting training..."\n\
 exec python src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
 
 RUN chmod +x /opt/ml/code/train_wrapper.sh
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
+ENV PYTHONUNBUFFERED=1 PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
 
-# Create non-root user for SageMaker
 RUN useradd -m -u 1000 sagemaker
 USER sagemaker
 
-# Entrypoint
 ENTRYPOINT ["/bin/bash", "/opt/ml/code/train_wrapper.sh"]
