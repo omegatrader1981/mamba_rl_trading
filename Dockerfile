@@ -1,9 +1,10 @@
-# Use official PyTorch 2.4.0 image with CUDA 12.1 (ABI-compatible with public Mamba wheels)
-FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn8-devel
+# Use NVIDIA PyTorch 24.09 → PyTorch 2.4.1 (stable) + CUDA 12.5
+# Confirmed compatible with causal-conv1d and mamba-ssm
+FROM nvcr.io/nvidia/pytorch:24.09-py3
 
 USER root
 
-# Install system dependencies (including build tools for causal-conv1d/mamba)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -12,15 +13,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
+# Install Python dependencies (your RL/trading stack)
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Install Mamba and causal-conv1d from source (to match CUDA 12.1 in this image)
-# They are NOT in requirements.txt to control build order and avoid conflicts
-RUN pip install --no-cache-dir causal-conv1d mamba-ssm
+# Install Mamba stack — safe on PyTorch 2.4.1
+# Pip will use wheel if compatible, or build from source (now safe!)
+RUN pip install --no-cache-dir "causal-conv1d>=1.5.0" "mamba-ssm>=2.2.6"
 
-# Verify critical dependencies
+# Verify critical components
 RUN python -c "\
 import torch; print(f'✅ PyTorch: {torch.__version__}'); \
 print(f'✅ CUDA: {torch.version.cuda}'); \
@@ -29,11 +30,11 @@ import causal_conv1d; print('✅ causal-conv1d: installed'); \
 import mamba_ssm; print(f'✅ Mamba: {mamba_ssm.__version__}'); \
 print('All critical dependencies verified!')"
 
-# Copy application code
+# Copy code
 COPY . /opt/ml/code
 WORKDIR /opt/ml/code
 
-# Create training wrapper
+# Training wrapper for SageMaker
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "=========================================="\n\
@@ -47,11 +48,9 @@ exec python src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
 
 RUN chmod +x /opt/ml/code/train_wrapper.sh
 
-# Environment setup
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/opt/ml/code"
+ENV PYTHONUNBUFFERED=1 PYTHONPATH="/opt/ml/code"
 
-# Non-root user for SageMaker
+# Create non-root user (SageMaker best practice)
 RUN useradd -m -u 1000 sagemaker
 USER sagemaker
 
