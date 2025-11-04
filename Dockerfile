@@ -1,46 +1,75 @@
-# Base image with CUDA 12.1 - THIS IS THE FIX
-FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+# Use NVIDIA PyTorch base - proven stable
+FROM nvcr.io/nvidia/pytorch:23.08-py3
 
-# Set non-interactive frontend for apt installs
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Etc/UTC
+USER root
 
-# Install system dependencies including Python, pip, and build tools
+# Install minimal system libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 \
-    python3.10-dev \
-    python3-pip \
-    python3-venv \
-    build-essential \
-    cmake \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     git \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Python 3.10 as default
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
-RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+# Copy requirements file
+COPY requirements.txt /tmp/requirements.txt
 
-# Set working directory for SageMaker
-WORKDIR /opt/ml/code
+# Install base dependencies
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# --- ROBUST MULTI-STEP INSTALLATION ---
+# Install Mamba from pre-built wheel + causal-conv1d (combined for efficiency)
+RUN wget https://github.com/state-spaces/mamba/releases/download/v2.2.6.post3/mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl && \
+    pip install --no-cache-dir \
+        mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl \
+        causal-conv1d && \
+    rm mamba_ssm-2.2.6.post3+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
-# STEP 1: Upgrade pip and install core Python build tools
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel packaging
+# Verify critical dependencies are working
+RUN python -c "\
+import torch; print(f'✅ PyTorch: {torch.__version__}'); \
+print(f'✅ CUDA: {torch.version.cuda}'); \
+print(f'✅ CUDA available: {torch.cuda.is_available()}'); \
+import causal_conv1d; print('✅ causal-conv1d: installed'); \
+import mamba_ssm; print(f'✅ Mamba: {mamba_ssm.__version__}'); \
+print('All critical dependencies verified!')"
 
-# STEP 2: Install PyTorch (for CUDA 12.1, matching the base image)
-RUN pip install --no-cache-dir torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121
-
-# STEP 3: Install the complex, compiled packages (Mamba)
-RUN pip install --no-cache-dir mamba-ssm causal-conv1d
-
-# STEP 4: Install the remaining application-level packages
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# STEP 5: Finally, copy the rest of the application code
+# Copy application code
 COPY . /opt/ml/code
 
-# Set environment variables for SageMaker
-ENV SAGEMAKER_PROGRAM src/train.py
-ENV PYTHONUNBUFFERED=1
+# Set working directory
+WORKDIR /opt/ml/code
+
+# Create enhanced debug wrapper with CUDA info
+RUN printf '#!/bin/bash\n\
+set -e\n\
+echo "=========================================="\n\
+echo "SAGEMAKER CONTAINER STARTING"\n\
+echo "=========================================="\n\
+echo "Directory: $(pwd)"\n\
+echo "User: $(whoami)"\n\
+echo "Python: $(python --version)"\n\
+echo "PyTorch: $(python -c \"import torch; print(torch.__version__)\")"\n\
+echo "CUDA available: $(python -c \"import torch; print(torch.cuda.is_available())\")"\n\
+echo "CUDA version: $(python -c \"import torch; print(torch.version.cuda)\")"\n\
+echo "Mamba: $(python -c \"import mamba_ssm; print(mamba_ssm.__version__)\" 2>/dev/null || echo \"ERROR\")"\n\
+echo ""\n\
+echo "Files check:"\n\
+ls -la /opt/ml/code/src/train.py && echo "✅ train.py exists" || echo "❌ train.py MISSING"\n\
+echo ""\n\
+echo "=========================================="\n\
+echo "STARTING TRAINING"\n\
+echo "=========================================="\n\
+exec python src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
+
+RUN chmod +x /opt/ml/code/train_wrapper.sh
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
+
+# Create non-root user for SageMaker
+RUN useradd -m -u 1000 sagemaker
+USER sagemaker
+
+# Entrypoint
+ENTRYPOINT ["/bin/bash", "/opt/ml/code/train_wrapper.sh"]
