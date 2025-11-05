@@ -16,27 +16,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
 
-# Install PyTorch 2.0.1 + CUDA 11.8 (last true CUDA 11.8 build)
+# Install PyTorch 2.0.1 + CUDA 11.8 (last official cu118 build)
 RUN pip3 install --no-cache-dir \
     torch==2.0.1+cu118 \
     torchvision==0.15.2+cu118 \
     torchaudio==2.0.2+cu118 \
     --extra-index-url https://download.pytorch.org/whl/cu118
 
-# Install app dependencies
+# Install app dependencies (RL/trading libs)
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# ✅ Install causal-conv1d from PyPI (has pre-built wheels for cu11 + torch 2.0)
-RUN pip3 install --no-cache-dir "causal-conv1d>=1.4.0"
-
-# Install mamba-ssm from pre-built wheel (PyTorch 2.0 + cu118)
+# ✅ Install mamba-ssm from pre-built wheel (PyTorch 2.0 + cu118)
+# This wheel already includes a compatible causal-conv1d — DO NOT install it separately!
 RUN curl -fL "https://github.com/state-spaces/mamba/releases/download/v2.2.2/mamba_ssm-2.2.2%2Bcu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" \
-    -o "/tmp/mamba_ssm-2.2.2+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" && \
-    pip3 install --no-cache-dir "/tmp/mamba_ssm-2.2.2+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" && \
-    rm "/tmp/mamba_ssm-2.2.2+cu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+    -o "/tmp/mamba_ssm.whl" && \
+    pip3 install --no-cache-dir "/tmp/mamba_ssm.whl" && \
+    rm "/tmp/mamba_ssm.whl"
 
-# Verify
+# Verify all critical dependencies
 RUN python3 -c "\
 import torch; \
 print(f'✅ PyTorch: {torch.__version__}'); \
@@ -46,11 +44,11 @@ import causal_conv1d; print('✅ causal-conv1d installed'); \
 import mamba_ssm; print(f'✅ Mamba: {mamba_ssm.__version__}'); \
 print('All critical dependencies verified!')"
 
-# Copy code
+# Copy application code
 COPY . /opt/ml/code
 WORKDIR /opt/ml/code
 
-# Training wrapper
+# Training wrapper script for SageMaker
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "=========================================="\n\
@@ -64,6 +62,7 @@ exec python3 src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
 
 RUN chmod +x /opt/ml/code/train_wrapper.sh
 
+# Set environment and user
 ENV PYTHONUNBUFFERED=1 PYTHONPATH="/opt/ml/code"
 RUN useradd -m -u 1000 sagemaker
 USER sagemaker
