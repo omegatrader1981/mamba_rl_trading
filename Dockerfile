@@ -22,18 +22,18 @@ RUN conda create -n env python=3.10 -y && \
         torch==2.4.0+cu118 torchvision==0.19.0+cu118 torchaudio==2.4.0+cu118 \
         --index-url https://download.pytorch.org/whl/cu118
 
-# ✅ Install ONLY mamba-ssm (v2.2.6.post3 includes causal-conv1d)
+# Install ONLY mamba-ssm (v2.2.6.post3 wheel is in v2.2.6.post1 release)
 RUN /opt/conda/envs/env/bin/pip install --no-cache-dir \
         "mamba-ssm==2.2.6.post3" \
-        -f https://github.com/state-spaces/mamba/releases/download/v2.2.6.post3 \
+        -f https://github.com/state-spaces/mamba/releases/download/v2.2.6.post1 \
         --only-binary=:all:
 
 # Verify
 RUN /opt/conda/envs/env/bin/python -c "\
 import torch, mamba_ssm; \
-print(f'✅ PyTorch: {torch.__version__}'); \
-print(f'✅ CUDA: {torch.version.cuda}'); \
-print(f'✅ Mamba: {mamba_ssm.__version__}'); \
+print(f'PyTorch: {torch.__version__}'); \
+print(f'CUDA: {torch.version.cuda}'); \
+print(f'Mamba: {mamba_ssm.__version__}'); \
 assert torch.version.cuda == '11.8', 'CUDA version mismatch!'"
 
 # Install app dependencies
@@ -44,7 +44,7 @@ RUN /opt/conda/envs/env/bin/pip install --no-cache-dir -r requirements.txt
 # Copy code
 COPY . .
 
-# ✅ CORRECT ENTRYPOINT: Use conda run (avoids source/activation issues)
+# CORRECT ENTRYPOINT: Use conda run (avoids source/activation issues)
 RUN printf '#!/bin/bash\n\
 set -e\n\
 exec /opt/conda/bin/conda run -n env --no-capture-output python src/train.py "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
