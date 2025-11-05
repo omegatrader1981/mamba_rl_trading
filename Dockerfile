@@ -17,18 +17,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
 
-# Define Mamba wheel URL (NO TRAILING SPACE!)
+# Pin PyTorch version in requirements.txt — install after mamba to avoid conflicts
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+
+# Install mamba-ssm from pre-built wheel (Python 3.10, cu118, torch2.0, cxx11abi=FALSE)
+# Official wheel URL — NO TRAILING SPACE!
 ENV MAMBA_WHEEL_URL="https://github.com/state-spaces/mamba/releases/download/v2.2.2/mamba_ssm-2.2.2%2Bcu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
 
-# Download and install mamba-ssm with SHA256 verification
 RUN curl -fL -o /tmp/mamba_ssm.whl "$MAMBA_WHEEL_URL" && \
     echo "f2cd537a0bc57ef573b6d4a87e547afa661902ebc6fb6dbbb7c6ee9a60396b2b  /tmp/mamba_ssm.whl" | sha256sum -c - && \
     pip3 install --no-cache-dir "/tmp/mamba_ssm.whl" && \
     rm "/tmp/mamba_ssm.whl"
-
-# Install all Python dependencies (including pinned PyTorch)
-COPY requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 # Verify installation
 RUN python3 -c "\
