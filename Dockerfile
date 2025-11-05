@@ -1,5 +1,5 @@
-# Use CUDA 12.1 (officially supported for PyTorch 2.2+)
-FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+# Use official PyTorch 2.4 + CUDA 11.8 base image (simpler and safer)
+FROM pytorch/pytorch:2.4.0-cuda11.8-cudnn9-devel
 
 USER root
 
@@ -10,26 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     ca-certificates \
-    python3 \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
 
-# Install PyTorch 2.2 + CUDA 12.1 (from official index)
-RUN pip3 install --no-cache-dir \
-    torch==2.2.0 \
-    torchvision==0.17.0 \
-    torchaudio==2.2.0 \
-    --extra-index-url https://download.pytorch.org/whl/cu121
-
-# Install app dependencies
+# Install app dependencies (no PyTorch — already installed)
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# ✅ Now safely install Mamba + causal-conv1d from PyPI (pre-built wheels exist!)
-RUN pip3 install --no-cache-dir "causal-conv1d>=1.4.0" "mamba-ssm"
+# Install Mamba + causal-conv1d from PyPI (pre-built wheels exist for cu11 + torch2.4)
+RUN pip3 install --no-cache-dir "causal-conv1d>=1.5.3" "mamba-ssm"
 
 # Verify
 RUN python3 -c "\
