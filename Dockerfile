@@ -1,9 +1,9 @@
-# Base: CUDA 11.8 (official, clean, supported)
+# Use CUDA 11.8 base (official, compatible with PyTorch 2.1 + Mamba)
 FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 USER root
 
-# Install system deps + build tools (needed for causal-conv1d source build)
+# Install system dependencies + build tools (required for causal-conv1d source build)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -17,27 +17,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
 
-# Install PyTorch 2.1.0 + CUDA 11.8
+# Install PyTorch 2.1.0 + CUDA 11.8 from official index
 RUN pip3 install --no-cache-dir \
     torch==2.1.0+cu118 \
     torchvision==0.16.0+cu118 \
     torchaudio==2.1.0+cu118 \
     --extra-index-url https://download.pytorch.org/whl/cu118
 
-# Install your app dependencies
+# Install application dependencies (RL, trading, etc.)
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# Install MAMBA from pre-built wheel (PyTorch 2.1 + CUDA 11.8)
+# Install Mamba from pre-built wheel (PyTorch 2.1 + CUDA 11.8, old ABI)
 RUN curl -fL "https://github.com/state-spaces/mamba/releases/download/v2.2.2/mamba_ssm-2.2.2%2Bcu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" \
     -o "/tmp/mamba_ssm-2.2.2+cu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" && \
     pip3 install --no-cache-dir "/tmp/mamba_ssm-2.2.2+cu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" && \
     rm "/tmp/mamba_ssm-2.2.2+cu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
 
-# Install causal-conv1d from source (safe in CUDA 11.8 dev image)
-RUN pip3 install --no-cache-dir "git+https://github.com/Dao-AILab/causal-conv1d.git@v1.4.0"
+# Install causal-conv1d from source (critical: --no-build-isolation to access torch)
+RUN pip3 install --no-cache-dir --no-build-isolation "git+https://github.com/Dao-AILab/causal-conv1d.git@v1.4.0"
 
-# Verify all critical components
+# Verify critical dependencies
 RUN python3 -c "\
 import torch; \
 print(f'✅ PyTorch: {torch.__version__}'); \
@@ -47,11 +47,11 @@ import causal_conv1d; print('✅ causal-conv1d installed'); \
 import mamba_ssm; print(f'✅ Mamba: {mamba_ssm.__version__}'); \
 print('All critical dependencies verified!')"
 
-# Copy code
+# Copy application code
 COPY . /opt/ml/code
 WORKDIR /opt/ml/code
 
-# Training wrapper
+# Create training wrapper for SageMaker
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "=========================================="\n\
@@ -65,8 +65,13 @@ exec python3 src/train.py "$@"\n' > /opt/ml/code/train_wrapper.sh
 
 RUN chmod +x /opt/ml/code/train_wrapper.sh
 
-ENV PYTHONUNBUFFERED=1 PYTHONPATH="/opt/ml/code"
+# Environment setup
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/opt/ml/code"
+
+# Create non-root user (SageMaker requirement)
 RUN useradd -m -u 1000 sagemaker
 USER sagemaker
 
+# Entrypoint
 ENTRYPOINT ["/bin/bash", "/opt/ml/code/train_wrapper.sh"]
