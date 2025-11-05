@@ -1,5 +1,5 @@
-# Use CUDA 11.8 base (true CUDA 11.8)
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+# Use CUDA 12.1 (officially supported for PyTorch 2.2+)
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
 USER root
 
@@ -17,20 +17,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
 
-# Pin PyTorch version in requirements.txt — install after mamba to avoid conflicts
+# Install PyTorch 2.2 + CUDA 12.1 (from official index)
+RUN pip3 install --no-cache-dir \
+    torch==2.2.0 \
+    torchvision==0.17.0 \
+    torchaudio==2.2.0 \
+    --extra-index-url https://download.pytorch.org/whl/cu121
+
+# Install app dependencies
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# Install mamba-ssm from pre-built wheel (Python 3.10, cu118, torch2.0, cxx11abi=FALSE)
-# Official wheel URL — NO TRAILING SPACE!
-ENV MAMBA_WHEEL_URL="https://github.com/state-spaces/mamba/releases/download/v2.2.2/mamba_ssm-2.2.2%2Bcu118torch2.0cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+# ✅ Now safely install Mamba + causal-conv1d from PyPI (pre-built wheels exist!)
+RUN pip3 install --no-cache-dir "causal-conv1d>=1.4.0" "mamba-ssm"
 
-RUN curl -fL -o /tmp/mamba_ssm.whl "$MAMBA_WHEEL_URL" && \
-    echo "f2cd537a0bc57ef573b6d4a87e547afa661902ebc6fb6dbbb7c6ee9a60396b2b  /tmp/mamba_ssm.whl" | sha256sum -c - && \
-    pip3 install --no-cache-dir "/tmp/mamba_ssm.whl" && \
-    rm "/tmp/mamba_ssm.whl"
-
-# Verify installation
+# Verify
 RUN python3 -c "\
 import torch; \
 print(f'✅ PyTorch: {torch.__version__}'); \
@@ -44,7 +45,7 @@ print('All critical dependencies verified!')"
 COPY . /opt/ml/code
 WORKDIR /opt/ml/code
 
-# Training wrapper for SageMaker
+# Training wrapper
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "=========================================="\n\
