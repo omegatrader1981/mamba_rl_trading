@@ -1,4 +1,4 @@
-# Use official PyTorch 2.4 + CUDA 11.8 base image (simpler and safer)
+# Use official PyTorch 2.4 + CUDA 11.8 base image
 FROM pytorch/pytorch:2.4.0-cuda11.8-cudnn9-devel
 
 USER root
@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     ca-certificates \
+    build-essential \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
@@ -19,8 +21,10 @@ RUN pip3 install --no-cache-dir --upgrade pip
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# Install Mamba + causal-conv1d from PyPI (pre-built wheels exist for cu11 + torch2.4)
-RUN pip3 install --no-cache-dir "causal-conv1d>=1.5.3" "mamba-ssm"
+# Install pre-built causal-conv1d wheel (for PyTorch 2.4 + CUDA 11.8)
+RUN pip3 install --no-cache-dir \
+    https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.5.3.post1/causal_conv1d-1.5.3.post1+cu118torch2.4cxx11abiTRUE-cp310-cp310-linux_x86_64.whl \
+    mamba-ssm
 
 # Verify
 RUN python3 -c "\
@@ -42,11 +46,11 @@ set -e\n\
 echo "=========================================="\n\
 echo "SAGEMAKER CONTAINER STARTING"\n\
 echo "=========================================="\n\
-echo "PyTorch: $(python3 -c "import torch; print(torch.__version__)")"\n\
-echo "CUDA available: $(python3 -c "import torch; print(torch.cuda.is_available())")"\n\
-echo "Mamba: $(python3 -c "import mamba_ssm; print(mamba_ssm.__version__)")"\n\
+echo "PyTorch: $(python3 -c \"import torch; print(torch.__version__\") )"\n\
+echo "CUDA available: $(python3 -c \"import torch; print(torch.cuda.is_available())\")"\n\
+echo "Mamba: $(python3 -c \"import mamba_ssm; print(mamba_ssm.__version__)\" )"\n\
 echo "Starting training..."\n\
-exec python3 src/train.py "$@"\n' > train_wrapper.sh
+exec python3 src/train.py \"$@\"\n' > train_wrapper.sh
 
 RUN chmod +x train_wrapper.sh
 
