@@ -5,21 +5,23 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/conda/bin:$PATH"
 
-# Install conda dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
         wget bzip2 ca-certificates git build-essential \
         libgl1-mesa-glx libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Miniconda
+# Install Miniconda (Python 3.10)
 RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_24.9.2-0-Linux-x86_64.sh -O /tmp/m.sh && \
     bash /tmp/m.sh -b -p /opt/conda && \
     rm /tmp/m.sh && \
     conda clean -afy
 
-# Create environment and install PyTorch + mamba-ssm from conda-forge
-RUN conda create -n env python=3.10 -c pytorch -c nvidia -c conda-forge \
-        pytorch==2.4.0 torchvision torchaudio pytorch-cuda=11.8 \
+# Create Conda env
+RUN conda create -n env python=3.10 -y
+
+# Install PyTorch 2.4.0 + mamba-ssm (pre-built binary, CUDA 11.8 compatible)
+RUN conda install -n env -c pytorch -c nvidia -c conda-forge \
+        pytorch=2.4.0 torchvision torchaudio pytorch-cuda=11.8 \
         mamba-ssm -y
 
 # Verify
@@ -28,7 +30,7 @@ import torch, mamba_ssm; \
 print(f'✅ PyTorch: {torch.__version__}'); \
 print(f'✅ CUDA: {torch.version.cuda}'); \
 print(f'✅ Mamba: {mamba_ssm.__version__}'); \
-assert torch.version.cuda == '11.8'"
+assert torch.version.cuda == '11.8', 'CUDA mismatch!'"
 
 # Install app dependencies
 WORKDIR /opt/ml/code
