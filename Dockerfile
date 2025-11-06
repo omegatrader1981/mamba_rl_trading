@@ -16,13 +16,16 @@ RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_24.9.2-0-Linux-
     rm /tmp/m.sh && \
     conda clean -afy
 
-# Create env
+# Create Conda env
 RUN conda create -n env python=3.10 -y
 
-# Install PyTorch + mamba-ssm — DO NOT USE pytorch-cuda
-RUN conda install -n env -c pytorch -c conda-forge \
-        pytorch=2.4.0 torchvision torchaudio \
-        mamba-ssm -y
+# Install PyTorch via pip (uses system CUDA 11.8)
+RUN /opt/conda/envs/env/bin/pip install --no-cache-dir \
+        torch==2.4.0+cu118 torchvision==0.19.0+cu118 torchaudio==2.4.0+cu118 \
+        --index-url https://download.pytorch.org/whl/cu118
+
+# Install mamba-ssm via conda-forge (pre-built)
+RUN conda install -n env -c conda-forge mamba-ssm -y
 
 # Verify
 RUN /opt/conda/envs/env/bin/python -c "\
