@@ -24,17 +24,17 @@ RUN /opt/conda/envs/env/bin/pip install --no-cache-dir \
         torch==2.4.0+cu118 torchvision==0.19.0+cu118 torchaudio==2.4.0+cu118 \
         --index-url https://download.pytorch.org/whl/cu118
 
-# Install mamba-ssm via GitHub wheel (CUDA + torch2.4 + cp310)
+# Install mamba-ssm via GitHub wheel
 RUN /opt/conda/envs/env/bin/pip install --no-cache-dir \
         https://github.com/state-spaces/mamba/releases/download/v2.2.5/mamba_ssm-2.2.5+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
-# Verify
+# Verify (NO ASSERT — CodeBuild has no GPU)
 RUN /opt/conda/envs/env/bin/python -c "\
 import torch, mamba_ssm; \
 print(f'PyTorch: {torch.__version__}'); \
 print(f'CUDA: {torch.version.cuda}'); \
 print(f'Mamba: {mamba_ssm.__version__}'); \
-assert torch.cuda.is_available(), 'CUDA not available!'"
+print(f'CUDA available: {torch.cuda.is_available()}')"
 
 # Install app deps
 WORKDIR /opt/ml/code
