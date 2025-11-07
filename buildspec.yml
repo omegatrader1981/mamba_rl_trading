@@ -15,7 +15,6 @@ phases:
     commands:
       - echo "Build started on $(date)"
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
-      # <<< FIX: Construct the LATEST_IMAGE_URI variable here >>>
       - export LATEST_IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:latest"
       - echo "Building Docker image with tag ${IMAGE_TAG}"
       - echo "Using cache from: ${LATEST_IMAGE_URI}"
@@ -25,7 +24,6 @@ phases:
     commands:
       - echo "Build completed on $(date)"
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
-      # <<< FIX: Re-export the LATEST_IMAGE_URI variable here for clarity >>>
       - export LATEST_IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:latest"
       - echo "Tagging and pushing commit-tagged image to ${REGION}"
       - docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
