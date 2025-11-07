@@ -1,9 +1,12 @@
 version: 0.2
+
 env:
   variables:
     ACCOUNT_ID: "537124950121"
     REGION: "eu-west-2"
     IMAGE_REPO_NAME: "mamba_rl_trading"
+    LATEST_IMAGE_URI: "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:latest"
+
 phases:
   pre_build:
     commands:
@@ -14,17 +17,24 @@ phases:
       - echo "Build started on $(date)"
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
       - echo "Building Docker image with tag ${IMAGE_TAG}"
-      - docker build -t ${IMAGE_REPO_NAME}:${IMAGE_TAG} .
+      # Pull the 'latest' tag to use its layers as a cache. The '|| true' prevents failure if it doesn't exist yet.
+      - docker pull $LATEST_IMAGE_URI || true
+      # Build the new image, using the pulled image as a cache source
+      - docker build --cache-from $LATEST_IMAGE_URI -t ${IMAGE_REPO_NAME}:${IMAGE_TAG} .
   post_build:
     commands:
       - echo "Build completed on $(date)"
       - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
-      - echo "Tagging and pushing to ${REGION}"
+      - echo "Tagging and pushing commit-tagged image to ${REGION}"
       - docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
       - docker push ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
+      - echo "Tagging and pushing 'latest' image to be used for the next build's cache"
+      - docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} $LATEST_IMAGE_URI
+      - docker push $LATEST_IMAGE_URI
       - echo "Creating image detail file"
       - printf '[{"name":"MambaRLTradingImage","imageUri":"%s"}]' "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}" > imagedefinitions.json
       - cat imagedefinitions.json
+
 artifacts:
   files:
     - imagedefinitions.json
