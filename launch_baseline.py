@@ -39,7 +39,6 @@ def main():
 
     sagemaker_session = sagemaker.Session(boto_session=boto3.Session(region_name=region))
 
-    # CONTAINER MODE: No entry_point or source_dir. Pass script choice via hyperparameter.
     estimator = Estimator(
         image_uri=image_uri,
         role=role_arn,
@@ -50,8 +49,10 @@ def main():
         sagemaker_session=sagemaker_session,
         use_spot_instances=job_config['use_spot'],
         max_run=job_config['max_run_seconds'],
+        # <<< FIX: Pass the required max_wait parameter for spot instances >>>
+        max_wait=job_config['max_wait_seconds'],
         hyperparameters={
-            'experiment': 'baseline_test',  # This tells the entrypoint which script to run
+            'experiment': 'baseline_test',
             'instrument': args.instrument
         },
         environment={"PYTHONUNBUFFERED": "1"}
@@ -62,7 +63,7 @@ def main():
         estimator.fit(
             inputs={"training": s3_input_data},
             job_name=job_name,
-            wait=False # Set to False for fire-and-forget
+            wait=False
         )
         
         print(f"\n✅ Job submitted successfully!")

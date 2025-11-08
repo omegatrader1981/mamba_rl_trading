@@ -2,21 +2,22 @@
 # Defines resources for different SageMaker job types.
 
 baseline_test:
-  # A cheap, non-GPU instance is perfect for the baseline test.
   instance_type: ml.m5.large
   instance_count: 1
   volume_size_gb: 30
   use_spot: true
   max_run_seconds: 3600 # 1 hour
+  # <<< FIX: Added max_wait_seconds, required for spot instances >>>
+  max_wait_seconds: 3600 # Wait up to 1 hour for a spot instance
   base_job_name_prefix: "baseline-test-{{instrument}}"
-  region: eu-west-2 # Or your preferred region
+  region: eu-west-2
 
-# --- Keep your other job types for full Mamba training ---
 smoke_test_gpu:
   instance_type: ml.g4dn.xlarge
   instance_count: 1
   volume_size_gb: 50
   use_spot: true
   max_run_seconds: 7200 # 2 hours
+  max_wait_seconds: 7200 # Wait up to 2 hours
   base_job_name_prefix: "mamba-smoke-{{instrument}}"
   region: eu-west-2
