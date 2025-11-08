@@ -24,7 +24,9 @@ def main():
     image_uri = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{image_name}:{args.image_tag}"
     role_arn = "arn:aws:iam::537124950121:role/service-role/AmazonSageMaker-ExecutionRole-20250221T093632"
     
-    s3_bucket_name = f"mambabot-{region}"
+    # <<< THE FIX IS HERE: Corrected the bucket name >>>
+    s3_bucket_name = "mambabot" # Was "mambabot-{region}"
+    
     s3_output_path = f"s3://{s3_bucket_name}/mamba-rl-trading/output/"
     s3_input_data = f"s3://{s3_bucket_name}/databento_mnq_downloads/databento_mnq_downloads_5min_2020_2024/"
 
@@ -35,6 +37,7 @@ def main():
     print(f"    Mode: CONTAINER")
     print(f"    Image: {image_uri}")
     print(f"    Job: {job_name}")
+    print(f"    Input Data: {s3_input_data}") # Print the corrected path for verification
     print(f"    Instance: {job_config['instance_type']}")
 
     sagemaker_session = sagemaker.Session(boto_session=boto3.Session(region_name=region))
@@ -49,7 +52,6 @@ def main():
         sagemaker_session=sagemaker_session,
         use_spot_instances=job_config['use_spot'],
         max_run=job_config['max_run_seconds'],
-        # <<< FIX: Pass the required max_wait parameter for spot instances >>>
         max_wait=job_config['max_wait_seconds'],
         hyperparameters={
             'experiment': 'baseline_test',
