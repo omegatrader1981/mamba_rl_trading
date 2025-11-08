@@ -3,7 +3,9 @@ FROM nvcr.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/conda/bin:$PATH"
+    PATH="/opt/conda/bin:$PATH" \
+    # Make pip caching explicit and consistent
+    PIP_CACHE_DIR=/root/.cache/pip
 
 # System packages with apt cache
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -12,14 +14,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         wget bzip2 ca-certificates git build-essential \
         libgl1-mesa-glx libglib2.0-0
 
-# Install Miniconda (cached layer)
+# Install Miniconda
 RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_24.9.2-0-Linux-x86_64.sh -O /tmp/m.sh && \
     bash /tmp/m.sh -b -p /opt/conda && \
     rm /tmp/m.sh && \
     conda clean -afy
 
-# Create Conda env (cached)
-RUN conda create -n env python=3.10 -y
+# Create Conda env with package cache
+RUN --mount=type=cache,target=/opt/conda/pkgs,sharing=locked \
+    conda create -n env python=3.10 -y
 
 # Install PyTorch with pip cache
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -36,16 +39,23 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN --mount=type=cache,target=/root/.cache/pip \
     /opt/conda/envs/env/bin/pip install --no-cache-dir "causal-conv1d>=1.1.0"
 
+# Verify critical dependencies
+RUN /opt/conda/envs/env/bin/python -c "\
+import torch, mamba_ssm, causal_conv1d; \
+print(f'✅ PyTorch: {torch.__version__}'); \
+print(f'✅ CUDA: {torch.version.cuda}'); \
+print(f'✅ Mamba: {mamba_ssm.__version__}')"
+
 # Copy requirements and install with cache
 WORKDIR /opt/ml/code
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     /opt/conda/envs/env/bin/pip install -r requirements.txt
 
-# Copy code (this layer changes most often, so put it last)
+# Copy code (changes most often - do last for better caching)
 COPY . .
 
-# Create entrypoint
+# Create conditional entrypoint
 RUN printf '#!/bin/bash\n\
 set -e\n\
 source /opt/conda/etc/profile.d/conda.sh\n\
@@ -55,7 +65,10 @@ echo "=========================================="\n\
 echo "SAGEMAKER CONTAINER STARTING"\n\
 echo "=========================================="\n\
 echo "Python: $(python --version)"\n\
-echo "Experiment: ${SM_HP_EXPERIMENT:-not_set}"\n\
+echo "PyTorch: $(python -c \"import torch; print(torch.__version__)\")"\n\
+echo "CUDA available: $(python -c \"import torch; print(torch.cuda.is_available())\")"\n\
+echo "Mamba: $(python -c \"import mamba_ssm; print(mamba_ssm.__version__)\")"\n\
+echo "Experiment: ${SM_HP_EXPERIMENT:-default}"\n\
 echo "=========================================="\n\
 \n\
 if [ "${SM_HP_EXPERIMENT}" = "baseline_test" ]; then\n\

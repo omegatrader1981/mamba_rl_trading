@@ -6,7 +6,7 @@ env:
     REGION: "eu-west-2"
     IMAGE_REPO_NAME: "mamba_rl_trading"
     # Enable Docker BuildKit for advanced caching
-    DOCKER_BUILDKIT: "1"
+    DOCKLOCKER_BUILDKIT: "1"
 
 phases:
   pre_build:
@@ -22,9 +22,10 @@ phases:
       - echo "Building with BuildKit and layer cache..."
       - docker pull ${LATEST_IMAGE_URI} || true
       # Use a multi-line command for readability with BuildKit flags
+      # This builds and tags both the commit hash and 'latest' in one step
       - |
         docker build \
-          --cache-from ${LATEST_-URI} \
+          --cache-from ${LATEST_IMAGE_URI} \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
           -t ${IMAGE_REPO_NAME}:${IMAGE_TAG} \
           -t ${LATEST_IMAGE_URI} \
@@ -34,6 +35,7 @@ phases:
   post_build:
     commands:
       - echo "Pushing images..."
+      # The images are already tagged, so we just need to push them
       - docker push ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
       - docker push ${LATEST_IMAGE_URI}
       - echo "Creating imagedefinitions.json..."
