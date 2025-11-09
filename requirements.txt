@@ -1,8 +1,21 @@
-stable-baselines3>=2.0.0,<2.6.0
-gymnasium>=0.28.1,<1.0.0
-pandas>=2.0.0,<3.0.0
-numpy>=1.24.0,<2.0.0
-scikit-learn>=1.3.0,<1.8.0
+# Configuration
+hydra-core
+omegaconf
+
+# RL & ML Frameworks
+stable-baselines3>=2.0.0
+gymnasium>=0.28.1
+
+# Data & Numerics
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+numba>=0.58.0
+
+# Financial Analysis & Features
 ta>=0.11.0
-hmmlearn>=0.3.0,<0.4.0
-numba>=0.58.0,<0.63.0
+hmmlearn>=0.3.0
+quantstats
+
+# Utilities
+joblib
