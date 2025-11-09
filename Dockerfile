@@ -44,9 +44,9 @@ RUN /opt/conda/envs/env/bin/pip install -r requirements.txt
 # Copy code
 COPY . .
 
-# Entrypoint
+# Entrypoint - FIXED PATH
 RUN printf '#!/bin/bash\n\
 set -e\n\
-exec /opt/conda/bin/conda run -n env --no-capture-output python src/train.py "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+exec /opt/conda/bin/conda run -n env --no-capture-output python src/pipeline/train.py "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
