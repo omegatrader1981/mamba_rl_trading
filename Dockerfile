@@ -44,9 +44,9 @@ RUN /opt/conda/envs/env/bin/pip install -r requirements.txt
 # Copy source code
 COPY . .
 
-# Ensure src is a proper Python package
-RUN touch /opt/ml/code/src/__init__.py && \
-    touch /opt/ml/code/src/pipeline/__init__.py
+# Overwrite __init__.py files with empty ones to prevent import errors
+RUN echo "" > /opt/ml/code/src/__init__.py && \
+    echo "" > /opt/ml/code/src/pipeline/__init__.py
 
 # Set PYTHONPATH so Python can find the src module
 ENV PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
