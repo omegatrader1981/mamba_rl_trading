@@ -30,21 +30,19 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         torch==2.4.0+cu118 torchvision==0.19.0+cu118 torchaudio==2.4.0+cu118 \
         --index-url https://download.pytorch.org/whl/cu118
 
-# Install mamba-ssm with cache (for CUDA 11.x)
+# <<< THE DEFINITIVE FIX: Install BOTH from pre-built wheels in a single step >>>
 RUN --mount=type=cache,target=/root/.cache/pip \
     /opt/conda/envs/env/bin/pip install --no-cache-dir \
-        https://github.com/state-spaces/mamba/releases/download/v2.2.5/mamba_ssm-2.2.5+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
-
-# Install causal-conv1d (will compile against CUDA 11.8)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    /opt/conda/envs/env/bin/pip install --no-cache-dir "causal-conv1d>=1.1.0"
+        https://github.com/state-spaces/mamba/releases/download/v2.2.5/mamba_ssm-2.2.5+cu11torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl \
+        https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.2.0.post1/causal_conv1d-1.2.0.post1-cp310-cp310-linux_x86_64.whl
 
 # Verify critical dependencies are working
 RUN /opt/conda/envs/env/bin/python -c "\
 import torch, mamba_ssm, causal_conv1d; \
 print(f'✅ PyTorch: {torch.__version__}'); \
 print(f'✅ CUDA: {torch.version.cuda}'); \
-print(f'✅ Mamba: {mamba_ssm.__version__}')"
+print(f'✅ Mamba: {mamba_ssm.__version__}'); \
+print(f'✅ Causal-Conv1D: OK')"
 
 # Copy requirements and install with cache
 WORKDIR /opt/ml/code
@@ -52,7 +50,7 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     /opt/conda/envs/env/bin/pip install -r requirements.txt
 
-# Copy code (changes most often - do last for better caching)
+# Copy code
 COPY . .
 
 # Create the final, corrected conditional entrypoint
