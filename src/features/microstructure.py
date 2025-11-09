@@ -13,8 +13,7 @@ def calculate_ofi(df_1s: pd.DataFrame, window: int = 5) -> pd.Series:
 
 def calculate_microprice(df_1s: pd.DataFrame) -> pd.Series:
     """Volume-weighted mid."""
-    return (df_1s['bid_price'] * df_1s['ask_size'] + df_1s['ask_price'] * df_1s['bid_size']) / \
-           (df_1s['bid_size'] + df_1s['ask_size'])
+    return (df_1s['bid_price'] * df_1s['ask_size'] + df_1s['ask_price'] * df_1s['bid_size']) /            (df_1s['bid_size'] + df_1s['ask_size'])
 
 def aggregate_1s_to_1min(df_1s: pd.DataFrame) -> pd.DataFrame:
     """1-second L2 → 1-minute OHLCV + OFI + micro-price."""

@@ -1,0 +1,7 @@
+# Requirements for the local environment to LAUNCH SageMaker jobs.
+# This is NOT the same as the requirements.txt for the Docker container.
+sagemaker
+boto3
+pyyaml
+ipython # For better interactivity if needed
+rich # For better tracebacks

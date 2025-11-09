@@ -47,30 +47,40 @@ class SimpleRulesBaseline:
             final_balance=equity.iloc[-1]
         )
 
-@hydra.main(config_path="conf", config_name="config", version_base=None)
+@hydra.main(config_path="../conf", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
     log.info("PHASE 0.5 SMOKE TEST — 5-MIN DATA")
+    # Default baseline
     if 'baseline_test' not in cfg:
         OmegaConf.set_struct(cfg, False)
         cfg.baseline_test = {'mom_threshold': 1.5, 'trending_hmm_regime': 1}
         OmegaConf.set_struct(cfg, True)
 
+    # Load S3 5-min data
     df_train_raw = build_regime_dataset(
         load_futures_data([f"{cfg.data.data_dir}/{f}" for f in cfg.data.data_filenames], **cfg.data.cleaning),
         {k: v for k, v in cfg.data.regime_definitions.items() if k.startswith('train_')}
     )
     val_dates = cfg.data.regime_definitions.validation_set[0]
     df_val_raw = load_futures_data([f"{cfg.data.data_dir}/{f}" for f in cfg.data.data_filenames], **cfg.data.cleaning).loc[val_dates[0]:val_dates[1]]
+
+    # Features
     df_val_feat, _ = create_feature_set(df_val_raw.copy(), cfg, df_train_raw)
+
+    # Auto-detect trending regime
     df_val_feat['ret'] = df_val_feat['close'].pct_change()
     df_val_feat['vol'] = df_val_feat['ret'].rolling(21).std()
     trending_regime = df_val_feat.groupby('hmm_regime')['vol'].mean().abs().idxmax()
     cfg.baseline_test.trending_hmm_regime = int(trending_regime)
     log.info(f"Trending Regime #{trending_regime}")
+
+    # Run
     result = SimpleRulesBaseline(df_val_feat, cfg).run()
     returns = result.equity_curve['portfolio_value'].pct_change().dropna()
     sharpe = qs.stats.sharpe(returns, annualize=True) if len(returns) > 20 else -99
     log.info(f"Sharpe: {sharpe:.3f}")
+
+    # Report
     os.makedirs("smoke_test_report", exist_ok=True)
     generate_report(result, {'sharpe': sharpe}, "smoke_test_report", cfg)
     log.info("Report: smoke_test_report/report.html")
