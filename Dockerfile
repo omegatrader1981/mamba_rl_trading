@@ -51,10 +51,10 @@ RUN echo "" > /opt/ml/code/src/__init__.py && \
 # Set PYTHONPATH so Python can find the src module
 ENV PYTHONPATH="/opt/ml/code:${PYTHONPATH}"
 
-# Create entrypoint script with correct path
+# Create entrypoint script - removed "$@" to not pass arguments to Hydra
 RUN printf '#!/bin/bash\n\
 set -e\n\
-exec /opt/conda/bin/conda run -n env --no-capture-output python src/pipeline/train.py "$@"\n' > /entrypoint.sh && \
+exec /opt/conda/bin/conda run -n env --no-capture-output python src/pipeline/train.py\n' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
