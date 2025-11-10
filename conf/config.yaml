@@ -1,22 +1,14 @@
-## User Info
-- Current time: November 10, 2025 09:01 AM GMT
-- Country: GB
-
 # Base configuration file
 defaults:
   - experiment: smoke_test
-  # - optimization: default # REMOVED - using inline config instead
-  - _self_ # Load this file LAST so interpolations succeed
+  - _self_
 
-# Add a fallback structure for 'experiment'
 experiment:
   name: "DefaultExperiment"
   description: "Base experiment fallback"
 
-# Instrument selection
 instrument: mnq
 
-# Data configuration
 data:
   train_start: "2020-01-01"
   train_end: "2021-12-31"
@@ -46,7 +38,6 @@ data:
     test_2024_full:
       - ["2024-01-01", "2024-12-31"]
 
-# Environment configuration
 env:
   lookback_window: 20
   features:
@@ -62,7 +53,6 @@ env:
     - "day_of_week_cos"
     - "hmm_regime"
 
-# Model configuration
 model:
   policy_type: "MlpPolicy"
   policy_kwargs:
@@ -71,7 +61,6 @@ model:
       vf: [256, 256]
     activation_fn: "tanh"
 
-# Training configuration
 training:
   total_timesteps: 1000000
   n_eval_episodes: 10
@@ -79,14 +68,12 @@ training:
   save_freq: 100000
   verbose: 1
 
-# Optimization configuration
 optimization:
   enabled: true
   n_trials: 50
   timeout: 7200
   n_jobs: 1
 
-# Saving configuration
 saving:
   output_dir: output_mamba_mnq_${experiment.name}
   scaler_filename: mnq_scaler_${experiment.name}.joblib
