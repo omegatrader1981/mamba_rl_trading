@@ -1,13 +1,12 @@
 # Base configuration file
 defaults:
   - experiment: smoke_test
+  - instrument: mnq
   - _self_
 
 experiment:
   name: "DefaultExperiment"
   description: "Base experiment fallback"
-
-instrument: mnq
 
 data:
   train_start: "2020-01-01"
