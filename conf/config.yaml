@@ -1,8 +1,12 @@
+## User Info
+- Current time: November 10, 2025 09:01 AM GMT
+- Country: GB
+
 # Base configuration file
 defaults:
   - experiment: smoke_test
-  - optimization: default
-  - _self_  # Load this file LAST so interpolations succeed
+  # - optimization: default # REMOVED - using inline config instead
+  - _self_ # Load this file LAST so interpolations succeed
 
 # Add a fallback structure for 'experiment'
 experiment:
@@ -75,7 +79,7 @@ training:
   save_freq: 100000
   verbose: 1
 
-# Optimization configuration (will be overridden by optimization configs)
+# Optimization configuration
 optimization:
   enabled: true
   n_trials: 50
