@@ -1,7 +1,4 @@
-# This file now ONLY contains overrides for the smoke test.
-defaults:
-  - override /optimization: null
-
+# Smoke test overrides - no optimization defaults needed
 experiment:
   name: SmokeTest
 
