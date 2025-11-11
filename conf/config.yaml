@@ -15,6 +15,13 @@ data:
   val_end: "2022-12-31"
   test_start: "2023-01-01"
   test_end: "2024-12-31"
+  
+  # Data cleaning parameters
+  cleaning:
+    min_allowable_price: 0.01
+    outlier_rolling_window: 21
+    outlier_median_dev_threshold: 0.20
+  
   regime_definitions:
     train_High_Vol_Crash:
       - ["2020-02-15", "2020-04-30"]
