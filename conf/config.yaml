@@ -108,3 +108,44 @@ saving:
   report_filename: mnq_report_${experiment.name}.html
   log_filename: mamba_rl_trading_${experiment.name}.log
   checkpoint_dir_name: checkpoints_${experiment.name}
+
+# Model architecture parameters
+model:
+  policy_type: "MlpPolicy"
+  mlp_activation_fn_name: "relu"
+  mamba_activation_fn_name: "silu"
+  mamba_d_conv_default: 4
+  mamba_expand_default: 2
+  policy_kwargs:
+    net_arch:
+      pi: [256, 256]
+      vf: [256, 256]
+    activation_fn: "tanh"
+
+# Environment parameters
+environment:
+  initial_balance: 100000
+  max_episode_steps: 10000
+  tick_size: 0.25
+  max_slippage_points: 0.5
+  add_bid_ask_spread: false
+  spread_ticks_min: 1
+  spread_ticks_max: 2
+  max_consecutive_holds_limit: 900
+  excessive_hold_penalty: 0.5
+  reward_scheme: "sac_shaped"
+  action_threshold: 0.5
+  activity_bonus_scale: 0.0
+  hold_penalty_scale: 0.0
+  win_bonus_scale: 0.0
+  loss_penalty_scale: 0.0
+  unrealized_loss_penalty_scale: 0.0
+
+# Evaluation parameters
+evaluation:
+  deterministic_actions: true
+
+# Saving file names for plots
+saving:
+  equity_curve_plot: "equity_curve.png"
+  positions_plot: "positions.png"
