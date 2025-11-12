@@ -34,11 +34,9 @@ data:
     train_Low_Vol_Grind:
       - ["2021-10-01", "2021-12-31"]
     
-    # Validation set
     validation_set:
       - ["2022-01-01", "2022-03-31"]
     
-    # Test set
     test_set:
       - ["2024-01-01", "2024-03-31"]
     
@@ -52,6 +50,14 @@ data:
       - ["2024-01-01", "2024-03-31"]
     test_2024_full:
       - ["2024-01-01", "2024-12-31"]
+
+# Feature engineering parameters
+features:
+  pct_change_cap: 0.1
+  hl_pct_cap: 0.2
+  z_score_window: 100
+  hmm_n_components: 3
+  hmm_min_samples: 1000
 
 env:
   lookback_window: 20

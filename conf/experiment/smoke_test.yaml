@@ -1,9 +1,9 @@
-# Smoke test overrides - no optimization defaults needed
+# Smoke test overrides
 experiment:
   name: SmokeTest
 
 training:
-  total_timesteps: 10000
+  total_timesteps: 5000
 
 optimization:
   enabled: false
