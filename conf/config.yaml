@@ -85,6 +85,7 @@ model:
     activation_fn: "tanh"
 
 environment:
+  lookback_window: 20
   initial_balance: 100000
   max_episode_steps: 10000
   tick_size: 0.25
