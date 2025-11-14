@@ -1,5 +1,6 @@
 # Base configuration file
 defaults:
+  # Default to the smoke_test experiment
   - experiment: smoke_test
   - instrument: mnq
   - _self_
@@ -104,7 +105,8 @@ environment:
   unrealized_loss_penalty_scale: 0.0
 
 training:
-  total_timesteps: 1000000
+  # <<< THE FIX IS HERE: Hardcoded to 5000 for absolute safety >>>
+  total_timesteps: 5000
   n_eval_episodes: 10
   eval_freq: 50000
   save_freq: 100000
