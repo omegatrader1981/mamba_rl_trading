@@ -1,5 +1,5 @@
 ## User Info
-- Current time: November 15, 2025 11:08 AM GMT
+- Current time: November 15, 2025 11:20 AM GMT
 - Country: GB
 
 # Base configuration file
@@ -19,12 +19,10 @@ data:
   val_end: "2022-12-31"
   test_start: "2023-01-01"
   test_end: "2024-12-31"
- 
   cleaning:
     min_allowable_price: 0.01
     outlier_rolling_window: 21
     outlier_median_dev_threshold: 0.20
- 
   regime_definitions:
     train_High_Vol_Crash:
       - ["2020-02-15", "2020-04-30"]
@@ -36,13 +34,13 @@ data:
       - ["2023-07-01", "2023-10-31"]
     train_Low_Vol_Grind:
       - ["2021-10-01", "2021-12-31"]
-   
+  
     validation_set:
       - ["2022-01-01", "2022-03-31"]
-   
+  
     test_set:
       - ["2024-01-01", "2024-03-31"]
-   
+  
     val_2022_Q1:
       - ["2022-01-01", "2022-03-31"]
     val_2022_Q4:
@@ -108,7 +106,7 @@ environment:
   unrealized_loss_penalty_scale: 0.0
 
 training:
-  total_timesteps: 100000
+  total_timesteps: 5000
   n_eval_episodes: 10
   eval_freq: 50000
   save_freq: 100000
