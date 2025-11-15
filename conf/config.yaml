@@ -1,3 +1,7 @@
+## User Info
+- Current time: November 15, 2025 12:42 PM GMT
+- Country: GB
+
 # Base configuration file
 defaults:
   - experiment: smoke_test
@@ -101,7 +105,7 @@ environment:
   unrealized_loss_penalty_scale: 0.0
 
 training:
-  total_timesteps: 5000
+  total_timesteps: 100000
   n_eval_episodes: 10
   eval_freq: 50000
   save_freq: 100000

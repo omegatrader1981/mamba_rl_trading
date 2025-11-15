@@ -3,7 +3,7 @@
 experiment:
   name: SmokeTest
 training:
-  total_timesteps: 5000
+  total_timesteps: 100000
 optimization:
   enabled: false
 data:
