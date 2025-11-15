@@ -1,15 +1,11 @@
 # conf/experiment/smoke_test.yaml
 # Smoke test overrides
-
 experiment:
   name: SmokeTest
-
 training:
-  total_timesteps: 5000
-
+  total_timesteps: 100000
 optimization:
   enabled: false
-
 data:
   regime_definitions:
     train_trending:
