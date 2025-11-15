@@ -1,7 +1,3 @@
-## User Info
-- Current time: November 15, 2025 12:42 PM GMT
-- Country: GB
-
 # Base configuration file
 defaults:
   - experiment: smoke_test
